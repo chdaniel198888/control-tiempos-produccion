@@ -1,4 +1,4 @@
-name: Sincronizar Operarios desde Airtable
+name: Sincronizar Operarios desde Airtable v2
 
 on:
   schedule:
