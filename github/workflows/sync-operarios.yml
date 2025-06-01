@@ -1,0 +1,54 @@
+name: Sincronizar Operarios desde Airtable
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Cada 6 horas
+  workflow_dispatch:       # Ejecutar manualmente
+
+jobs:
+  sync-operarios:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+      
+    - name: Obtener operarios desde Airtable
+      run: |
+        # Configurar variables
+        BASE_ID="${{ secrets.AIRTABLE_BASE_ID }}"
+        TOKEN="${{ secrets.AIRTABLE_TOKEN }}"
+        TABLE_ID="tbldYTLfQ3DoEK0WA"
+        
+        # Filtro para operarios de producción activos
+        FILTER="AND({Cargo}='Operario de producción',{Estado}='Activo')"
+        ENCODED_FILTER=$(echo "$FILTER" | jq -sRr @uri)
+        
+        # Hacer consulta a Airtable
+        curl -H "Authorization: Bearer $TOKEN" \
+             "https://api.airtable.com/v0/$BASE_ID/$TABLE_ID?filterByFormula=$ENCODED_FILTER&fields%5B%5D=Nombre&fields%5B%5D=Código%20Trabajador" \
+             > airtable_response.json
+        
+        # Procesar respuesta y crear JSON limpio
+        jq '{
+          "operarios": [
+            .records[] | {
+              "nombre": .fields.Nombre,
+              "codigo": .fields["Código Trabajador"] // ""
+            }
+          ],
+          "ultima_actualizacion": now | strftime("%Y-%m-%d %H:%M:%S"),
+          "total": (.records | length)
+        }' airtable_response.json > operarios.json
+        
+        # Mostrar resultado
+        echo "✅ Operarios sincronizados:"
+        cat operarios.json
+    
+    - name: Commit y push de cambios
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add operarios.json
+        git commit -m "🔄 Actualizar operarios desde Airtable $(date)" || exit 0
+        git push
