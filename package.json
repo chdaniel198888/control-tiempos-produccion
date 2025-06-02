@@ -1,0 +1,11 @@
+{
+  "name": "control-tiempos-produccion",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo 'Build complete'",
+    "start": "echo 'App running'"
+  },
+  "dependencies": {
+    "react": "^18.0.0"
+  }
+}
