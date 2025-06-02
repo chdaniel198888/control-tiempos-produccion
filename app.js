@@ -73,8 +73,7 @@ const TiempoProduccionApp = () => {
   // Cargar órdenes de producción pendientes
   const cargarOrdenes = async () => {
     try {
-      const hoy = new Date().toISOString().split('T')[0];
-      const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.ordenes}?filterByFormula=AND({Estado}='Pendiente',IS_SAME({Fecha_Produccion},'${hoy}','day'))`;
+      const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.ordenes}?filterByFormula={Estado}='Pendiente'`;
       
       const response = await fetch(url, {
         headers: {
@@ -224,7 +223,9 @@ const TiempoProduccionApp = () => {
     setEnProceso(false);
     setTiempoInicio(null);
     setEtapa('');
-    await cargarDatos();
+    
+    // Recargar datos
+    await Promise.all([cargarOperarios(), cargarOrdenes()]);
   };
 
   // Exportar CSV
@@ -292,7 +293,7 @@ const TiempoProduccionApp = () => {
                   ))}
                 </select>
                 <p className="text-sm text-green-600 mt-1">
-                  ✅ {operarios.length} operarios disponibles
+                  ✅ {operarios.length} operarios de producción cargados
                 </p>
               </div>
 
