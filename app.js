@@ -19,12 +19,12 @@ const TiempoProduccionApp = () => {
 
   // Configuración Airtable
   const config = {
-    baseId: 'appzTllAjxu4TOs1a',
-    token: 'patVNOhNd8sd7aFNf.ea0625015701b662df173fa067123aedb52f9dc6b769732c8886775e5c01cdd0',
+    baseId: 'appxLN1eWmQtHtScK',
+    token: 'patwsDQO9ESnSjoPm.f25ac0959b111660f0fe4bbe1a8f6475d5444999c0641e283cd050c84281b4e0',
     tables: {
-      operarios: 'tbldYTLfQ3DoEK0WA',
-      ordenes: 'tblGu60xfEuDQTfuR', // Verificar este ID
-      ejecucion: 'tblqRMzf8ECmJzBDj'
+      operarios: 'tbl1cnciEfyKNDmhE',
+      ordenes: 'tblgL5ujfWZnG0Jtj',
+      ejecucion: 'tblAmR2wbcZ56o60F'
     }
   };
 
