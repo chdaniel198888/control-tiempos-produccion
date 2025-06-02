@@ -1,5 +1,4 @@
 const { useState, useEffect } = React;
-const { Clock, Play, Square, Download, Trash2 } = lucide;
 
 const TiempoProduccionApp = () => {
   const [operario, setOperario] = useState('');
@@ -12,7 +11,7 @@ const TiempoProduccionApp = () => {
   const [operarios, setOperarios] = useState([]);
   const [cargandoOperarios, setCargandoOperarios] = useState(true);
 
-  // Productos y etapas reales extraídos de tu matriz de producción
+  // Productos y etapas reales
   const productosConEtapas = {
     'JACK DANIEL V3': ['PREPARACION DE UTENSILIOS', 'SOFRITO DE CEBOLLA PAITEÑA Y AJO', 'LICUADO Y COCCIÓN', 'PORCIONADO', 'LIMPIEZA DEL ÁREA'],
     'ZUMO DE FRESA': ['PREPARACION DE UTENSILIOS', 'PESADO Y LICUADO', 'PORCIONADO', 'EMPACADO PRIMARIO', 'EMPACADO SECUNDARIO', 'LIMPIEZA DEL ÁREA'],
@@ -20,12 +19,11 @@ const TiempoProduccionApp = () => {
     'ALIÑO PECHUGA': ['PREPARACION DE UTENSILIOS', 'PESADO Y PRODUCCIÓN', 'LIMPIEZA DEL ÁREA'],
     'HAMBURGUESA V6': ['PREPARACION DE UTENSILIOS', 'PESADO', 'MOLIDA', 'MEZCLADO/PORCIONADO/ENFUNDADO/APLASTADO', 'TIEMPO DE CONGELACIÓN', 'EMPACADO SECUNDARIO', 'LIMPIEZA DEL ÁREA'],
     'COSTILLAS PAQ': ['PREPARACION DE UTENSILIOS', 'ALIÑADO', 'COCCION', 'PORCIONADO', 'EMPACADO', 'LIMPIEZA DEL ÁREA']
-    // ... más productos
   };
 
   const productos = Object.keys(productosConEtapas);
 
-  // Cargar operarios desde Airtable (ahora funcionará sin CSP)
+  // Cargar operarios desde Airtable
   useEffect(() => {
     const cargarOperarios = async () => {
       try {
@@ -62,30 +60,9 @@ const TiempoProduccionApp = () => {
             setOperarios(operariosData);
             console.log(`✅ ${operariosData.length} operarios cargados desde Airtable:`, operariosData);
           }
-        } else {
-          console.error('Error al cargar operarios:', response.status);
-          // Fallback con operarios reales conocidos
-          setOperarios([
-            { nombre: 'Arroyo Mosquera Erick Sebastián', codigo: 'RG018' },
-            { nombre: 'Ruiz Jauregui Gabriel Enrique', codigo: 'RG014' },
-            { nombre: 'Tirira Vasquez Carlos David', codigo: 'RG013' },
-            { nombre: 'Minaya Alvarado Ramon Agustin', codigo: 'RG012' },
-            { nombre: 'Blanco Paez Eugenio Andres', codigo: 'RG011' },
-            { nombre: 'Tituaña Chachipanta Lenin Giovanni', codigo: 'FZ028' },
-            { nombre: 'Yuquilema Duran Patricio Mentor', codigo: 'RG010' }
-          ]);
         }
       } catch (error) {
-        console.error('Error al conectar con Airtable:', error);
-        setOperarios([
-          { nombre: 'Arroyo Mosquera Erick Sebastián', codigo: 'RG018' },
-          { nombre: 'Ruiz Jauregui Gabriel Enrique', codigo: 'RG014' },
-          { nombre: 'Tirira Vasquez Carlos David', codigo: 'RG013' },
-          { nombre: 'Minaya Alvarado Ramon Agustin', codigo: 'RG012' },
-          { nombre: 'Blanco Paez Eugenio Andres', codigo: 'RG011' },
-          { nombre: 'Tituaña Chachipanta Lenin Giovanni', codigo: 'FZ028' },
-          { nombre: 'Yuquilema Duran Patricio Mentor', codigo: 'RG010' }
-        ]);
+        console.error('Error:', error);
       } finally {
         setCargandoOperarios(false);
       }
@@ -94,10 +71,105 @@ const TiempoProduccionApp = () => {
     cargarOperarios();
   }, []);
 
-  // ... resto del código de la app (funciones, render, etc.)
-  
-  return React.createElement('div', { className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" }, 
-    // ... JSX convertido a React.createElement
+  // Reloj
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTiempoActual(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return React.createElement('div', {
+    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
+  }, 
+    React.createElement('div', { className: "max-w-4xl mx-auto" },
+      React.createElement('div', { className: "bg-white rounded-xl shadow-lg p-6" },
+        React.createElement('h1', { className: "text-3xl font-bold text-gray-800 mb-6" }, 
+          '🕐 Control de Tiempos - Producción'
+        ),
+        React.createElement('div', { className: "grid md:grid-cols-2 gap-6" },
+          // Panel izquierdo
+          React.createElement('div', { className: "space-y-4" },
+            React.createElement('h2', { className: "text-xl font-semibold text-gray-700" }, 
+              'Registro de Actividad'
+            ),
+            // Operario
+            React.createElement('div', null,
+              React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 
+                'Operario de Producción'
+              ),
+              React.createElement('select', {
+                value: operario,
+                onChange: (e) => setOperario(e.target.value),
+                className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500",
+                disabled: cargandoOperarios
+              },
+                React.createElement('option', { value: "" }, 
+                  cargandoOperarios ? 'Cargando...' : 'Selecciona operario'
+                ),
+                operarios.map((op, i) => 
+                  React.createElement('option', { key: i, value: op.nombre }, 
+                    `${op.nombre} ${op.codigo ? `(${op.codigo})` : ''}`
+                  )
+                )
+              )
+            ),
+            // Producto
+            React.createElement('div', null,
+              React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 
+                'Producto'
+              ),
+              React.createElement('select', {
+                value: producto,
+                onChange: (e) => {
+                  setProducto(e.target.value);
+                  setEtapa('');
+                },
+                className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              },
+                React.createElement('option', { value: "" }, 'Selecciona producto'),
+                productos.map(p => 
+                  React.createElement('option', { key: p, value: p }, p)
+                )
+              )
+            ),
+            // Etapa
+            React.createElement('div', null,
+              React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 
+                'Etapa'
+              ),
+              React.createElement('select', {
+                value: etapa,
+                onChange: (e) => setEtapa(e.target.value),
+                className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500",
+                disabled: !producto
+              },
+                React.createElement('option', { value: "" }, 
+                  !producto ? 'Primero selecciona producto' : 'Selecciona etapa'
+                ),
+                producto && productosConEtapas[producto] && productosConEtapas[producto].map(e => 
+                  React.createElement('option', { key: e, value: e }, e)
+                )
+              )
+            )
+          ),
+          // Panel derecho
+          React.createElement('div', { className: "bg-gray-50 rounded-lg p-6" },
+            React.createElement('h3', { className: "text-lg font-semibold text-gray-700 mb-4" }, 
+              'Estado Actual'
+            ),
+            React.createElement('div', { className: "text-2xl font-mono text-center py-4 bg-white rounded-lg" }, 
+              tiempoActual.toLocaleTimeString('es-ES')
+            ),
+            React.createElement('div', { className: "mt-4 text-center" },
+              React.createElement('div', { className: "text-lg" }, 
+                `${operarios.length} operarios disponibles`
+              )
+            )
+          )
+        )
+      )
+    )
   );
 };
 
