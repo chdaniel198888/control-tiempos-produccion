@@ -23,7 +23,7 @@ const TiempoProduccionApp = () => {
     token: 'patVNOhNd8sd7aFNf.ea0625015701b662df173fa067123aedb52f9dc6b769732c8886775e5c01cdd0',
     tables: {
       operarios: 'tbldYTLfQ3DoEK0WA',
-      ordenes: 'tblMi5XRz5jqRdTdM',
+      ordenes: 'tblGu60xfEuDQTfuR', // Verificar este ID
       ejecucion: 'tblqRMzf8ECmJzBDj'
     }
   };
@@ -75,6 +75,8 @@ const TiempoProduccionApp = () => {
     try {
       const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.ordenes}?filterByFormula={Estado}='Pendiente'`;
       
+      console.log('🔄 Cargando órdenes de producción...');
+      
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${config.token}`,
@@ -84,10 +86,15 @@ const TiempoProduccionApp = () => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 Órdenes recibidas:', data.records.length);
+        console.log('Datos:', data.records);
+        
         setOrdenesPendientes(data.records.map(record => ({
           id: record.id,
           ...record.fields
         })));
+      } else {
+        console.error('Error en respuesta:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error cargando órdenes:', error);
