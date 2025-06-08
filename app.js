@@ -159,7 +159,8 @@ const TiempoProduccionApp = () => {
           tiempoPromedio: record.fields['Tiempo Promedio (min)'] || 0,
           tiempoMinimo: record.fields['Tiempo Mínimo (min)'] || 0,
           tiempoMaximo: record.fields['Tiempo Máximo (min)'] || 0,
-          unidad: record.fields['Unidad'] || 'Unidad'
+          unidad: record.fields['Unidad'] || 'Unidad',
+          tipoEtapa: record.fields['Tipo De Etapa'] || 'Variable' // NUEVO: Agregamos el tipo de etapa
         }));
         
         setEtapasDisponibles(etapasData);
@@ -243,7 +244,11 @@ const TiempoProduccionApp = () => {
   const calcularColorSemaforo = () => {
     if (!etapaInfo || !ordenSeleccionada || cronometro === 0) return 'gray';
     
-    const tiempoEstimadoTotal = etapaInfo.tiempoPromedio * ordenSeleccionada.Cantidad;
+    const tiempoEstimadoTotal = calcularTiempoTotal(
+      etapaInfo.tiempoPromedio,
+      ordenSeleccionada.Cantidad,
+      etapaInfo.tipoEtapa
+    );
     const porcentajeTranscurrido = (cronometro / 60) / tiempoEstimadoTotal * 100;
     
     if (porcentajeTranscurrido <= 90) return 'green';
@@ -257,6 +262,29 @@ const TiempoProduccionApp = () => {
     const minutos = Math.floor((segundos % 3600) / 60);
     const segs = segundos % 60;
     return `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+  };
+
+  // NUEVO: Formatear tiempo en minutos a formato legible
+  const formatearMinutos = (minutos) => {
+    if (minutos < 60) {
+      return `${minutos.toFixed(1)} min`;
+    } else {
+      const horas = Math.floor(minutos / 60);
+      const mins = Math.round(minutos % 60);
+      if (mins === 0) {
+        return `${horas}h`;
+      }
+      return `${horas}h ${mins}min`;
+    }
+  };
+
+  // NUEVO: Calcular tiempo total según tipo de etapa
+  const calcularTiempoTotal = (tiempoPorUnidad, cantidad, tipoEtapa) => {
+    if (tipoEtapa === 'Estándar') {
+      return tiempoPorUnidad; // Tiempo fijo, no se multiplica
+    } else {
+      return tiempoPorUnidad * cantidad; // Tiempo variable, se multiplica por cantidad
+    }
   };
 
   // Formatear fecha para mostrar
@@ -353,7 +381,11 @@ const TiempoProduccionApp = () => {
     const duracionMinutos = duracionSegundos / 60;
     
     // Calcular métricas
-    const tiempoEstimadoTotal = etapaInfo.tiempoPromedio * ordenSeleccionada.Cantidad;
+    const tiempoEstimadoTotal = calcularTiempoTotal(
+      etapaInfo.tiempoPromedio,
+      ordenSeleccionada.Cantidad,
+      etapaInfo.tipoEtapa
+    );
     const diferencia = duracionMinutos - tiempoEstimadoTotal;
     const porcentajeDiferencia = (diferencia / tiempoEstimadoTotal) * 100;
     
@@ -579,10 +611,86 @@ const TiempoProduccionApp = () => {
                   ))}
                 </select>
                 {etapaInfo && (
-                  <div className="mt-2 p-3 bg-blue-50 rounded-lg text-sm">
-                    <p>⏱️ Tiempo estimado: <strong>{(etapaInfo.tiempoPromedio * ordenSeleccionada.Cantidad).toFixed(1)} min</strong></p>
-                    <p>📊 Para: {ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</p>
-                    <p>🎯 Mejor tiempo: {(etapaInfo.tiempoMinimo * ordenSeleccionada.Cantidad).toFixed(1)} min</p>
+                  <div className="mt-3 space-y-3">
+                    {/* Indicador del tipo de etapa */}
+                    <div className={`p-2 rounded-lg text-center font-semibold ${
+                      etapaInfo.tipoEtapa === 'Estándar' 
+                        ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                        : 'bg-green-100 text-green-800 border border-green-300'
+                    }`}>
+                      {etapaInfo.tipoEtapa === 'Estándar' ? '⚡ Etapa Estándar' : '📊 Etapa Variable'}
+                    </div>
+
+                    {/* Cards de métricas */}
+                    <div className="grid grid-cols-1 gap-3">
+                      {/* Card de Tiempo Estimado */}
+                      <div className={`rounded-lg p-4 shadow-md border-2 ${
+                        etapaInfo.tipoEtapa === 'Estándar'
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                              <span className="text-lg">⏱️</span> Tiempo Estimado
+                            </p>
+                            <p className="text-2xl font-bold text-gray-800 mt-1">
+                              {formatearMinutos(calcularTiempoTotal(
+                                etapaInfo.tiempoPromedio,
+                                ordenSeleccionada.Cantidad,
+                                etapaInfo.tipoEtapa
+                              ))}
+                            </p>
+                          </div>
+                          <div className={`text-4xl ${
+                            etapaInfo.tipoEtapa === 'Estándar' ? 'text-yellow-400' : 'text-green-400'
+                          }`}>
+                            ⏱️
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card de Mejor Tiempo */}
+                      <div className={`rounded-lg p-4 shadow-md border-2 ${
+                        etapaInfo.tipoEtapa === 'Estándar'
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                              <span className="text-lg">🎯</span> Mejor Tiempo
+                            </p>
+                            <p className="text-2xl font-bold text-gray-800 mt-1">
+                              {formatearMinutos(calcularTiempoTotal(
+                                etapaInfo.tiempoMinimo,
+                                ordenSeleccionada.Cantidad,
+                                etapaInfo.tipoEtapa
+                              ))}
+                            </p>
+                          </div>
+                          <div className={`text-4xl ${
+                            etapaInfo.tipoEtapa === 'Estándar' ? 'text-yellow-400' : 'text-green-400'
+                          }`}>
+                            🏆
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card de Detalles */}
+                      <div className="rounded-lg p-3 bg-gray-50 border border-gray-200">
+                        <p className="text-xs font-medium text-gray-600 mb-2">📈 Detalles del Cálculo</p>
+                        <div className="space-y-1 text-xs text-gray-700">
+                          <p>📦 Cantidad: <span className="font-semibold">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</span></p>
+                          {etapaInfo.tipoEtapa === 'Variable' && (
+                            <p>⏱️ Tiempo base: <span className="font-semibold">{etapaInfo.tiempoPromedio} min/{etapaInfo.unidad}</span></p>
+                          )}
+                          {etapaInfo.tipoEtapa === 'Estándar' && (
+                            <p className="text-yellow-700">⚡ Tiempo fijo (no depende de cantidad)</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
