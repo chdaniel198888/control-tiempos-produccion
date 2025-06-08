@@ -188,9 +188,9 @@ const TiempoProduccionApp = () => {
 
   // Cargar etapas cuando se selecciona una orden
   useEffect(() => {
-    if (ordenSeleccionada && ordenSeleccionada.Producto) {
-      console.log('📌 Orden seleccionada, producto:', ordenSeleccionada.Producto);
-      cargarEtapas(ordenSeleccionada.Producto);
+    if (ordenSeleccionada && ordenSeleccionada.Producto_Copia) {  // CAMBIO: Ahora verifica Producto_Copia
+      console.log('📌 Orden seleccionada, producto:', ordenSeleccionada.Producto_Copia);  // CAMBIO: Log actualizado
+      cargarEtapas(ordenSeleccionada.Producto_Copia);  // CAMBIO: Pasa Producto_Copia a cargarEtapas
     } else {
       setEtapasDisponibles([]);
       setEtapa('');
@@ -290,7 +290,7 @@ const TiempoProduccionApp = () => {
       id: Date.now(),
       fecha: ahora.toLocaleDateString('es-ES'),
       operario,
-      producto: ordenSeleccionada.Producto || 'Sin producto',
+      producto: ordenSeleccionada.Producto_Copia || 'Sin producto',  // CAMBIO: Usa Producto_Copia
       etapa: etapaInfo.nombre,
       etapaId: etapa,
       horaInicio: ahora.toLocaleTimeString('es-ES'),
@@ -538,7 +538,7 @@ const TiempoProduccionApp = () => {
                     // Formatear la información para mostrar
                     const fecha = formatearFecha(orden.Fecha_Programada || orden.Fecha_Orden);
                     const dia = orden.Día || orden.Dia || '';
-                    const producto = orden.Producto || 'Sin producto';
+                    const producto = orden.Producto_Copia || 'Sin producto';  // CAMBIO: Ahora usa Producto_Copia
                     const cantidad = orden.Cantidad || 0;
                     const unidad = orden.Unidad || '';
                     
@@ -623,7 +623,7 @@ const TiempoProduccionApp = () => {
                   <div className="bg-white p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Produciendo:</p>
                     <p className="font-semibold">
-                      {ordenSeleccionada.Producto || 'Sin producto'}
+                      {ordenSeleccionada.Producto_Copia || 'Sin producto'}  {/* CAMBIO: Usa Producto_Copia */}
                     </p>
                     <p className="text-sm">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</p>
                     <p className="text-sm text-gray-600 mt-2">Etapa: {etapaInfo.nombre}</p>
