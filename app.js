@@ -536,8 +536,6 @@ const TiempoProduccionApp = () => {
         'Producto_Nombre': ordenSeleccionada.Producto_Copia || 'Sin producto',
         'Etapa_Nombre': etapaInfo.nombre,
         'Etapa_Tipo': etapaInfo.tipoEtapa || 'Variable',
-        'Cantidad_Producida': ordenSeleccionada.Cantidad,
-        'Unidad_Medida': ordenSeleccionada.Unidad,
         'Hora_Inicio': tiempoInicio.toISOString(),
         'Hora_Fin': ahora.toISOString(),
         'Duracion_Total_Min': Math.round(duracionMinutos),
