@@ -22,7 +22,6 @@ const TiempoProduccionApp = () => {
   // Estados de datos
   const [operarios, setOperarios] = useState([]);
   const [ordenesPendientes, setOrdenesPendientes] = useState([]);
-  const [productos, setProductos] = useState({}); // NUEVO: Estado para almacenar productos
   const [etapasDisponibles, setEtapasDisponibles] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [cargandoEtapas, setCargandoEtapas] = useState(false);
@@ -37,8 +36,7 @@ const TiempoProduccionApp = () => {
       operarios: 'tbl1cnciEfyKNDmhE',
       ordenes: 'tblgL5ujfWZnG0Jtj',
       ejecucion: 'tblAmR2wbcZ56o60F',
-      etapas: 'tblcg4CfbN36krPdC',
-      productos: 'tblZCiGd0SpggRIvr' // NUEVO: ID de la tabla de productos
+      etapas: 'tblcg4CfbN36krPdC'
     }
   };
 
@@ -57,42 +55,6 @@ const TiempoProduccionApp = () => {
     { id: 'llamada', label: '📞 Llamada urgente', tipo: 'administrativa' },
     { id: 'cambio_produccion', label: '🔄 Cambio de producción', tipo: 'administrativa' }
   ];
-
-  // NUEVA FUNCIÓN: Cargar todos los productos
-  const cargarProductos = async () => {
-    try {
-      console.log('🔄 Cargando productos...');
-      const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.productos}`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${config.token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Productos cargados:', data.records.length);
-        
-        // Crear un mapa de productos donde la clave es el ID del registro
-        const productosMap = {};
-        data.records.forEach(record => {
-          productosMap[record.id] = {
-            id: record.id,
-            nombre: record.fields['Nombre Producto'] || 'Sin nombre',
-            tipo: record.fields['Tipo Producto'] || '',
-            ...record.fields // Incluir todos los campos por si necesitamos más información
-          };
-        });
-        
-        setProductos(productosMap);
-        console.log('📦 Mapa de productos creado:', productosMap);
-      }
-    } catch (error) {
-      console.error('❌ Error cargando productos:', error);
-    }
-  };
 
   // Cargar operarios disponibles
   const cargarOperarios = async () => {
@@ -126,7 +88,7 @@ const TiempoProduccionApp = () => {
     }
   };
 
-  // MODIFICADA: Cargar órdenes de producción pendientes
+  // Cargar órdenes de producción pendientes
   const cargarOrdenes = async () => {
     try {
       const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.ordenes}?filterByFormula={Estado}='Pendiente'`;
@@ -142,34 +104,26 @@ const TiempoProduccionApp = () => {
         const data = await response.json();
         console.log('📦 Órdenes recibidas:', data.records);
         
-        // Procesar órdenes y resolver nombres de productos
+        // Procesar órdenes - Ahora usamos directamente el campo Producto
         const ordenesProcesadas = data.records.map(record => {
           const orden = {
             id: record.id,
             ...record.fields
           };
           
-          // Resolver el nombre del producto usando nuestro mapa
-          if (orden.Producto && Array.isArray(orden.Producto) && orden.Producto.length > 0) {
-            const productoId = orden.Producto[0]; // Tomar el primer ID de producto
-            const producto = productos[productoId];
-            
-            if (producto) {
-              orden.ProductoNombre = producto.nombre;
-              console.log(`✅ Producto resuelto: ${productoId} -> ${producto.nombre}`);
-            } else {
-              orden.ProductoNombre = 'Producto no encontrado';
-              console.log(`⚠️ Producto no encontrado: ${productoId}`);
-            }
-          } else {
-            orden.ProductoNombre = 'Sin producto';
-          }
+          // El campo Producto ya contiene el nombre del producto
+          // No necesitamos resolver ningún ID
+          console.log('Orden procesada:', {
+            producto: orden.Producto,
+            fecha: orden.Fecha_Programada,
+            cantidad: orden.Cantidad
+          });
           
           return orden;
         });
         
         setOrdenesPendientes(ordenesProcesadas);
-        console.log('📋 Órdenes procesadas con nombres:', ordenesProcesadas);
+        console.log('✅ Total órdenes pendientes:', ordenesProcesadas.length);
       }
     } catch (error) {
       console.error('Error cargando órdenes:', error);
@@ -182,6 +136,7 @@ const TiempoProduccionApp = () => {
     setEtapasDisponibles([]);
     
     try {
+      console.log('🔍 Buscando etapas para producto:', producto);
       const filterFormula = `AND({Producto}='${producto}',{Estado}='Activo')`;
       const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.etapas}?filterByFormula=${encodeURIComponent(filterFormula)}&sort[0][field]=Etapa%20Número`;
       
@@ -194,6 +149,8 @@ const TiempoProduccionApp = () => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📋 Etapas encontradas:', data.records.length);
+        
         const etapasData = data.records.map(record => ({
           id: record.id,
           etapaId: record.fields['Etapa ID'],
@@ -214,17 +171,11 @@ const TiempoProduccionApp = () => {
     }
   };
 
-  // MODIFICADO: Cargar datos iniciales (ahora carga productos primero)
+  // Cargar datos iniciales
   useEffect(() => {
     const cargarDatos = async () => {
       setCargando(true);
-      
-      // IMPORTANTE: Cargar productos primero
-      await cargarProductos();
-      
-      // Luego cargar operarios y órdenes en paralelo
       await Promise.all([cargarOperarios(), cargarOrdenes()]);
-      
       setCargando(false);
     };
     
@@ -235,22 +186,11 @@ const TiempoProduccionApp = () => {
     return () => clearInterval(interval);
   }, [registros]);
 
-  // IMPORTANTE: Recargar órdenes cuando los productos cambien
-  useEffect(() => {
-    if (Object.keys(productos).length > 0) {
-      cargarOrdenes();
-    }
-  }, [productos]);
-
   // Cargar etapas cuando se selecciona una orden
   useEffect(() => {
-    if (ordenSeleccionada) {
-      // Usar el nombre del producto que ya procesamos
-      const productoNombre = ordenSeleccionada.ProductoNombre;
-        
-      if (productoNombre && productoNombre !== 'Sin producto' && productoNombre !== 'Producto no encontrado') {
-        cargarEtapas(productoNombre);
-      }
+    if (ordenSeleccionada && ordenSeleccionada.Producto) {
+      console.log('📌 Orden seleccionada, producto:', ordenSeleccionada.Producto);
+      cargarEtapas(ordenSeleccionada.Producto);
     } else {
       setEtapasDisponibles([]);
       setEtapa('');
@@ -319,6 +259,20 @@ const TiempoProduccionApp = () => {
     return `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
   };
 
+  // Formatear fecha para mostrar
+  const formatearFecha = (fecha) => {
+    if (!fecha || fecha === 'Sin fecha') return 'Sin fecha';
+    
+    // Si la fecha está en formato YYYY-MM-DD
+    if (fecha.includes('-')) {
+      const [año, mes, dia] = fecha.split('-');
+      return `${dia}/${mes}/${año}`;
+    }
+    
+    // Si ya está en otro formato, devolverla tal cual
+    return fecha;
+  };
+
   // Iniciar cronómetro
   const iniciarTiempo = () => {
     if (!operario || !ordenSeleccionada || !etapa) {
@@ -336,7 +290,7 @@ const TiempoProduccionApp = () => {
       id: Date.now(),
       fecha: ahora.toLocaleDateString('es-ES'),
       operario,
-      producto: ordenSeleccionada.ProductoNombre || 'Sin producto',
+      producto: ordenSeleccionada.Producto || 'Sin producto',
       etapa: etapaInfo.nombre,
       etapaId: etapa,
       horaInicio: ahora.toLocaleTimeString('es-ES'),
@@ -581,29 +535,23 @@ const TiempoProduccionApp = () => {
                 >
                   <option value="">Selecciona una orden</option>
                   {ordenesPendientes.map((orden) => {
-                    // Formatear fecha
-                    let fecha = orden.Fecha_Programada || orden.Fecha_Orden || 'Sin fecha';
-                    if (fecha !== 'Sin fecha' && fecha.includes('-')) {
-                      const [año, mes, dia] = fecha.split('-');
-                      fecha = `${dia}/${mes}/${año}`;
-                    }
-                    
-                    // Obtener el día
+                    // Formatear la información para mostrar
+                    const fecha = formatearFecha(orden.Fecha_Programada || orden.Fecha_Orden);
                     const dia = orden.Día || orden.Dia || '';
-                    
-                    // Usar el nombre del producto ya resuelto
-                    const producto = orden.ProductoNombre || 'Sin producto';
+                    const producto = orden.Producto || 'Sin producto';
+                    const cantidad = orden.Cantidad || 0;
+                    const unidad = orden.Unidad || '';
                     
                     return (
                       <option key={orden.id} value={orden.id}>
-                        {fecha} - {dia ? `${dia} - ` : ''}{producto} - {orden.Cantidad} {orden.Unidad}
+                        {fecha} - {dia ? `${dia} - ` : ''}{producto} - {cantidad} {unidad}
                       </option>
                     );
                   })}
                 </select>
-                {Object.keys(productos).length > 0 && (
+                {ordenesPendientes.length > 0 && (
                   <p className="text-sm text-green-600 mt-1">
-                    ✅ {Object.keys(productos).length} productos cargados en caché
+                    ✅ {ordenesPendientes.length} órdenes pendientes cargadas
                   </p>
                 )}
               </div>
@@ -621,7 +569,8 @@ const TiempoProduccionApp = () => {
                 >
                   <option value="">
                     {!ordenSeleccionada ? 'Primero selecciona una orden' : 
-                     cargandoEtapas ? 'Cargando etapas...' : 'Selecciona etapa'}
+                     cargandoEtapas ? 'Cargando etapas...' : 
+                     etapasDisponibles.length === 0 ? 'No hay etapas disponibles' : 'Selecciona etapa'}
                   </option>
                   {etapasDisponibles.map(e => (
                     <option key={e.etapaId} value={e.etapaId}>
@@ -674,7 +623,7 @@ const TiempoProduccionApp = () => {
                   <div className="bg-white p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Produciendo:</p>
                     <p className="font-semibold">
-                      {ordenSeleccionada.ProductoNombre || 'Sin producto'}
+                      {ordenSeleccionada.Producto || 'Sin producto'}
                     </p>
                     <p className="text-sm">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</p>
                     <p className="text-sm text-gray-600 mt-2">Etapa: {etapaInfo.nombre}</p>
