@@ -499,7 +499,7 @@ const TiempoProduccionApp = () => {
                   <option value="">Selecciona una orden</option>
                   {ordenesPendientes.map((orden) => (
                     <option key={orden.id} value={orden.id}>
-                      {orden.Producto} - {orden.Cantidad} {orden.Unidad} ({orden.Turno})
+                      {orden.Fecha_Programada || orden.Fecha_Orden || 'Sin fecha'} - {orden.Producto} - {orden.Cantidad} {orden.Unidad}
                     </option>
                   ))}
                 </select>
