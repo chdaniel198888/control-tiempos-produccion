@@ -37,8 +37,8 @@ const TiempoProduccionApp = () => {
       ordenes: 'tblgL5ujfWZnG0Jtj',
       ejecucion: 'tblAmR2wbcZ56o60F',
       etapas: 'tblcg4CfbN36krPdC',
-      registroPausas: 'tblKA6mBaR3EBF2y8', // Tabla de Registro Pausas
-      registroEtapas: 'tblWptrJ5xbWiqSfI' // Tabla de Registro Etapas Ejecutadas
+      registroPausas: 'tblKA6mBaR3EBF2y8',
+      registroEtapas: 'tblWptrJ5xbWiqSfI'
     }
   };
 
@@ -96,7 +96,6 @@ const TiempoProduccionApp = () => {
           codigo: record.fields['Código Trabajador'] || ''
         }));
         
-        // Filtrar operarios que ya están trabajando
         const operariosDisponibles = operariosList.filter(op => 
           !registros.some(reg => reg.operario === op.nombre && !reg.horaFin)
         );
@@ -124,15 +123,12 @@ const TiempoProduccionApp = () => {
         const data = await response.json();
         console.log('📦 Órdenes recibidas:', data.records);
         
-        // Procesar órdenes - Ahora usamos directamente el campo Producto
         const ordenesProcesadas = data.records.map(record => {
           const orden = {
             id: record.id,
             ...record.fields
           };
           
-          // El campo Producto ya contiene el nombre del producto
-          // No necesitamos resolver ningún ID
           console.log('Orden procesada:', {
             producto: orden.Producto,
             fecha: orden.Fecha_Programada,
@@ -180,7 +176,7 @@ const TiempoProduccionApp = () => {
           tiempoMinimo: record.fields['Tiempo Mínimo (min)'] || 0,
           tiempoMaximo: record.fields['Tiempo Máximo (min)'] || 0,
           unidad: record.fields['Unidad'] || 'Unidad',
-          tipoEtapa: record.fields['Tipo De Etapa'] || 'Variable' // NUEVO: Agregamos el tipo de etapa
+          tipoEtapa: record.fields['Tipo De Etapa'] || 'Variable'
         }));
         
         setEtapasDisponibles(etapasData);
@@ -202,16 +198,15 @@ const TiempoProduccionApp = () => {
     
     cargarDatos();
     
-    // Actualizar cada 30 segundos
     const interval = setInterval(cargarDatos, 30000);
     return () => clearInterval(interval);
   }, [registros]);
 
   // Cargar etapas cuando se selecciona una orden
   useEffect(() => {
-    if (ordenSeleccionada && ordenSeleccionada.Producto_Copia) {  // CAMBIO: Ahora verifica Producto_Copia
-      console.log('📌 Orden seleccionada, producto:', ordenSeleccionada.Producto_Copia);  // CAMBIO: Log actualizado
-      cargarEtapas(ordenSeleccionada.Producto_Copia);  // CAMBIO: Pasa Producto_Copia a cargarEtapas
+    if (ordenSeleccionada && ordenSeleccionada.Producto_Copia) {
+      console.log('📌 Orden seleccionada, producto:', ordenSeleccionada.Producto_Copia);
+      cargarEtapas(ordenSeleccionada.Producto_Copia);
     } else {
       setEtapasDisponibles([]);
       setEtapa('');
@@ -301,9 +296,9 @@ const TiempoProduccionApp = () => {
   // NUEVO: Calcular tiempo total según tipo de etapa
   const calcularTiempoTotal = (tiempoPorUnidad, cantidad, tipoEtapa) => {
     if (tipoEtapa === 'Estándar') {
-      return tiempoPorUnidad; // Tiempo fijo, no se multiplica
+      return tiempoPorUnidad;
     } else {
-      return tiempoPorUnidad * cantidad; // Tiempo variable, se multiplica por cantidad
+      return tiempoPorUnidad * cantidad;
     }
   };
 
@@ -334,13 +329,11 @@ const TiempoProduccionApp = () => {
   const formatearFecha = (fecha) => {
     if (!fecha || fecha === 'Sin fecha') return 'Sin fecha';
     
-    // Si la fecha está en formato YYYY-MM-DD
     if (fecha.includes('-')) {
       const [año, mes, dia] = fecha.split('-');
       return `${dia}/${mes}/${año}`;
     }
     
-    // Si ya está en otro formato, devolverla tal cual
     return fecha;
   };
 
@@ -356,12 +349,11 @@ const TiempoProduccionApp = () => {
     setEnProceso(true);
     setPausas([]);
     
-    // Agregar registro temporal
     const nuevoRegistro = {
       id: Date.now(),
       fecha: ahora.toLocaleDateString('es-ES'),
       operario,
-      producto: ordenSeleccionada.Producto_Copia || 'Sin producto',  // CAMBIO: Usa Producto_Copia
+      producto: ordenSeleccionada.Producto_Copia || 'Sin producto',
       etapa: etapaInfo.nombre,
       etapaId: etapa,
       horaInicio: ahora.toLocaleTimeString('es-ES'),
@@ -415,7 +407,7 @@ const TiempoProduccionApp = () => {
     setTiempoPausaActual(null);
   };
 
-  // Finalizar cronómetro
+  // Finalizar cronómetro - CORREGIDO
   const finalizarTiempo = async () => {
     if (!enProceso) return;
     
@@ -490,7 +482,9 @@ const TiempoProduccionApp = () => {
     
     // Guardar en las tres tablas de Airtable
     try {
-      // 1. Guardar en tabla original de ejecución (mantener compatibilidad)
+      console.log('🚀 Iniciando guardado en Airtable...');
+      
+      // 1. Guardar en tabla original de ejecución
       const responseEjecucion = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.ejecucion}`, {
         method: 'POST',
         headers: {
@@ -571,17 +565,22 @@ const TiempoProduccionApp = () => {
       if (!responseEtapas.ok) {
         const errorData = await responseEtapas.json();
         console.error('❌ Error en tabla Registro_Etapas_Ejecutadas:', errorData);
-        console.error('Detalles del error:', JSON.stringify(errorData.error, null, 2));
       } else {
         console.log('✅ Guardado en tabla Registro_Etapas_Ejecutadas');
       }
       
-      // 3. Guardar cada pausa individual en Registro_Pausas
+      // 3. CORRECCIÓN: Guardar pausas solo si existen
       if (pausas.length > 0) {
-        const registrosPausas = pausas.map(pausa => {
+        console.log(`📊 Procesando ${pausas.length} pausas para guardar...`);
+        
+        // Limpiar motivos de texto antes de enviar
+        const registrosPausas = pausas.map((pausa, index) => {
           const tipoPausa = motivosPausa.find(m => m.id === pausa.motivo)?.tipo || 'operativa';
           const horaFin = pausa.horaFin || ahora;
           const duracionMinutos = Math.round((horaFin - pausa.horaInicio) / 60000);
+          
+          // Limpiar emojis del texto del motivo
+          const motivoLimpio = pausa.motivoTexto.replace(/[🚻🍽️🔧📦⚡🌡️🧹👥📋🏥📞🔄]/g, '').trim();
           
           const datosPausa = {
             'Operario_Nombre': operario,
@@ -589,7 +588,7 @@ const TiempoProduccionApp = () => {
             'Producto_Nombre': ordenSeleccionada.Producto_Copia || 'Sin producto',
             'Etapa_Nombre': etapaInfo.nombre,
             'Tipo_Pausa': tipoPausa === 'operativa' ? TIPOS_PAUSA.OPERATIVA : TIPOS_PAUSA.ADMINISTRATIVA,
-            'Motivo_Pausa': pausa.motivoTexto,
+            'Motivo_Pausa': motivoLimpio, // Usar motivo limpio
             'Fecha': pausa.horaInicio.toISOString().split('T')[0],
             'Hora_Inicio': pausa.horaInicio.toISOString(),
             'Hora_Fin': horaFin.toISOString(),
@@ -597,27 +596,62 @@ const TiempoProduccionApp = () => {
             'Turno': determinarTurno(pausa.horaInicio)
           };
           
+          console.log(`  Pausa ${index + 1}: ${motivoLimpio} - ${duracionMinutos} min`);
+          
           return { fields: datosPausa };
         });
         
-        console.log('📋 Datos a enviar a Registro_Pausas:', registrosPausas);
+        console.log('📤 Enviando pausas a Airtable...');
         
-        const responsePausas = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroPausas}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${config.token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ records: registrosPausas })
-        });
-        
-        if (!responsePausas.ok) {
-          const errorData = await responsePausas.json();
-          console.error('❌ Error en tabla Registro_Pausas:', errorData);
-          console.error('Detalles del error:', JSON.stringify(errorData.error, null, 2));
-        } else {
-          console.log('✅ Guardado en tabla Registro_Pausas');
+        try {
+          const responsePausas = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroPausas}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${config.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ records: registrosPausas })
+          });
+          
+          const pausasResult = await responsePausas.json();
+          
+          if (!responsePausas.ok) {
+            console.error('❌ Error en tabla Registro_Pausas:', pausasResult);
+            console.error('Detalles del error:', JSON.stringify(pausasResult.error, null, 2));
+            
+            // Intentar guardar pausas una por una si falla el batch
+            console.log('🔄 Intentando guardar pausas individualmente...');
+            
+            for (let i = 0; i < registrosPausas.length; i++) {
+              try {
+                const responsePausaIndividual = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroPausas}`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${config.token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ records: [registrosPausas[i]] })
+                });
+                
+                if (responsePausaIndividual.ok) {
+                  console.log(`✅ Pausa ${i + 1} guardada individualmente`);
+                } else {
+                  const errorIndividual = await responsePausaIndividual.json();
+                  console.error(`❌ Error en pausa ${i + 1}:`, errorIndividual);
+                }
+              } catch (errorIndividual) {
+                console.error(`❌ Error al guardar pausa ${i + 1}:`, errorIndividual);
+              }
+            }
+          } else {
+            console.log('✅ Todas las pausas guardadas exitosamente');
+            console.log(`✅ ${pausasResult.records.length} registros de pausa creados`);
+          }
+        } catch (errorPausas) {
+          console.error('❌ Error general al guardar pausas:', errorPausas);
         }
+      } else {
+        console.log('ℹ️ No hay pausas para guardar');
       }
       
       console.log('✅ Proceso de guardado completado');
@@ -739,10 +773,9 @@ const TiempoProduccionApp = () => {
                 >
                   <option value="">Selecciona una orden</option>
                   {ordenesPendientes.map((orden) => {
-                    // Formatear la información para mostrar
                     const fecha = formatearFecha(orden.Fecha_Programada || orden.Fecha_Orden);
                     const dia = orden.Día || orden.Dia || '';
-                    const producto = orden.Producto_Copia || 'Sin producto';  // CAMBIO: Ahora usa Producto_Copia
+                    const producto = orden.Producto_Copia || 'Sin producto';
                     const cantidad = orden.Cantidad || 0;
                     const unidad = orden.Unidad || '';
                     
@@ -903,7 +936,7 @@ const TiempoProduccionApp = () => {
                   <div className="bg-white p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Produciendo:</p>
                     <p className="font-semibold">
-                      {ordenSeleccionada.Producto_Copia || 'Sin producto'}  {/* CAMBIO: Usa Producto_Copia */}
+                      {ordenSeleccionada.Producto_Copia || 'Sin producto'}
                     </p>
                     <p className="text-sm">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</p>
                     <p className="text-sm text-gray-600 mt-2">Etapa: {etapaInfo.nombre}</p>
