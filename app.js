@@ -849,3 +849,6 @@ const TiempoProduccionApp = () => {
 };
 
 ReactDOM.render(<TiempoProduccionApp />, document.getElementById('root'));
+git add .
+git commit -m "Retry deploy - fix stuck build"
+git push origin main
