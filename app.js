@@ -36,7 +36,9 @@ const TiempoProduccionApp = () => {
       operarios: 'tbl1cnciEfyKNDmhE',
       ordenes: 'tblgL5ujfWZnG0Jtj',
       ejecucion: 'tblAmR2wbcZ56o60F',
-      etapas: 'tblcg4CfbN36krPdC'
+      etapas: 'tblcg4CfbN36krPdC',
+      registroPausas: 'tblKA6mBaR3EBF2y8', // Tabla de Registro Pausas
+      registroEtapas: 'tblWptrJ5xbWiqSfI' // Tabla de Registro Etapas Ejecutadas
     }
   };
 
@@ -55,6 +57,24 @@ const TiempoProduccionApp = () => {
     { id: 'llamada', label: '📞 Llamada urgente', tipo: 'administrativa' },
     { id: 'cambio_produccion', label: '🔄 Cambio de producción', tipo: 'administrativa' }
   ];
+
+  // NUEVO: Constantes para valores consistentes
+  const TIPOS_PAUSA = {
+    OPERATIVA: 'Operativa',
+    ADMINISTRATIVA: 'Administrativa'
+  };
+
+  const ESTADOS_SEMAFORO = {
+    VERDE: 'Verde',
+    AMARILLO: 'Amarillo',
+    ROJO: 'Rojo'
+  };
+
+  const TURNOS = {
+    MANANA: 'Mañana',
+    TARDE: 'Tarde',
+    NOCHE: 'Noche'
+  };
 
   // Cargar operarios disponibles
   const cargarOperarios = async () => {
@@ -287,6 +307,29 @@ const TiempoProduccionApp = () => {
     }
   };
 
+  // NUEVO: Determinar turno según la hora
+  const determinarTurno = (fecha) => {
+    const hora = fecha.getHours();
+    if (hora >= 6 && hora < 14) {
+      return TURNOS.MANANA;
+    } else if (hora >= 14 && hora < 22) {
+      return TURNOS.TARDE;
+    } else {
+      return TURNOS.NOCHE;
+    }
+  };
+
+  // NUEVO: Determinar estado del semáforo según eficiencia
+  const determinarEstadoSemaforo = (porcentajeEficiencia) => {
+    if (porcentajeEficiencia >= 90) {
+      return ESTADOS_SEMAFORO.VERDE;
+    } else if (porcentajeEficiencia >= 75) {
+      return ESTADOS_SEMAFORO.AMARILLO;
+    } else {
+      return ESTADOS_SEMAFORO.ROJO;
+    }
+  };
+
   // Formatear fecha para mostrar
   const formatearFecha = (fecha) => {
     if (!fecha || fecha === 'Sin fecha') return 'Sin fecha';
@@ -388,6 +431,36 @@ const TiempoProduccionApp = () => {
     );
     const diferencia = duracionMinutos - tiempoEstimadoTotal;
     const porcentajeDiferencia = (diferencia / tiempoEstimadoTotal) * 100;
+    const porcentajeEficiencia = Math.round(100 - Math.abs(porcentajeDiferencia));
+    
+    // Calcular tiempos de pausas
+    const tiempoPausasTotal = pausas.reduce((acc, pausa) => {
+      const fin = pausa.horaFin || ahora;
+      return acc + Math.floor((fin - pausa.horaInicio) / 60000);
+    }, 0);
+    
+    const tiempoPausasOperativas = pausas
+      .filter(p => motivosPausa.find(m => m.id === p.motivo)?.tipo === 'operativa')
+      .reduce((acc, pausa) => {
+        const fin = pausa.horaFin || ahora;
+        return acc + Math.floor((fin - pausa.horaInicio) / 60000);
+      }, 0);
+    
+    const tiempoPausasAdmin = pausas
+      .filter(p => motivosPausa.find(m => m.id === p.motivo)?.tipo === 'administrativa')
+      .reduce((acc, pausa) => {
+        const fin = pausa.horaFin || ahora;
+        return acc + Math.floor((fin - pausa.horaInicio) / 60000);
+      }, 0);
+    
+    const duracionProductiva = Math.round(duracionMinutos - tiempoPausasTotal);
+    
+    // Crear resumen de pausas
+    const detallePausasResumen = pausas.map(p => {
+      const duracion = p.horaFin ? Math.round((p.horaFin - p.horaInicio) / 60000) : 0;
+      const motivoTexto = p.motivoTexto.replace(/[🚻🍽️🔧📦⚡🌡️🧹👥📋🏥📞🔄]/g, '').trim();
+      return `${motivoTexto}: ${duracion}min`;
+    }).join(', ') || 'Sin pausas';
     
     const resultados = {
       duracionMinutos: duracionMinutos.toFixed(2),
@@ -396,10 +469,7 @@ const TiempoProduccionApp = () => {
       porcentajeDiferencia: porcentajeDiferencia.toFixed(1),
       esMejor: diferencia < 0,
       pausas: pausas.length,
-      tiempoPausas: pausas.reduce((acc, pausa) => {
-        const fin = pausa.horaFin || ahora;
-        return acc + Math.floor((fin - pausa.horaInicio) / 1000);
-      }, 0)
+      tiempoPausas: tiempoPausasTotal
     };
     
     setResultadosFinales(resultados);
@@ -418,8 +488,9 @@ const TiempoProduccionApp = () => {
       return reg;
     }));
     
-    // Guardar en Airtable
+    // Guardar en las tres tablas de Airtable
     try {
+      // 1. Guardar en tabla original de ejecución (mantener compatibilidad)
       await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.ejecucion}`, {
         method: 'POST',
         headers: {
@@ -438,9 +509,9 @@ const TiempoProduccionApp = () => {
               'Estado_Etapa': 'Completada',
               'Cantidad_Producida': ordenSeleccionada.Cantidad,
               'Tiempo_Estimado': tiempoEstimadoTotal,
-              'Porcentaje_Eficiencia': Math.round(100 - Math.abs(porcentajeDiferencia)),
+              'Porcentaje_Eficiencia': porcentajeEficiencia,
               'Numero_Pausas': pausas.length,
-              'Tiempo_Total_Pausas': Math.round(resultados.tiempoPausas / 60),
+              'Tiempo_Total_Pausas': tiempoPausasTotal,
               'Detalle_Pausas': JSON.stringify(pausas.map(p => ({
                 motivo: p.motivoTexto,
                 duracion: p.horaFin ? Math.round((p.horaFin - p.horaInicio) / 60000) : 0
@@ -449,6 +520,80 @@ const TiempoProduccionApp = () => {
           }]
         })
       });
+      
+      // 2. Guardar en nueva tabla Registro_Etapas_Ejecutadas
+      await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroEtapas}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          records: [{
+            fields: {
+              'Fecha': tiempoInicio.toISOString().split('T')[0],
+              'Operario_Nombre': operario,
+              'Orden_ID': ordenSeleccionada.id,
+              'Producto_Nombre': ordenSeleccionada.Producto_Copia || 'Sin producto',
+              'Etapa_Nombre': etapaInfo.nombre,
+              'Etapa_Tipo': etapaInfo.tipoEtapa || 'Variable',
+              'Cantidad_Producida': ordenSeleccionada.Cantidad,
+              'Unidad_Medida': ordenSeleccionada.Unidad,
+              'Hora_Inicio': tiempoInicio.toISOString(),
+              'Hora_Fin': ahora.toISOString(),
+              'Duracion_Total_Min': Math.round(duracionMinutos),
+              'Duracion_Productiva_Min': duracionProductiva,
+              'Numero_Pausas': pausas.length,
+              'Tiempo_Total_Pausas_Min': tiempoPausasTotal,
+              'Tiempo_Pausas_Operativas_Min': tiempoPausasOperativas,
+              'Tiempo_Pausas_Admin_Min': tiempoPausasAdmin,
+              'Detalle_Pausas_Resumen': detallePausasResumen,
+              'Tiempo_Estimado_Min': Math.round(tiempoEstimadoTotal),
+              'Diferencia_Min': Math.round(diferencia),
+              'Porcentaje_Eficiencia': porcentajeEficiencia,
+              'Estado_Semaforo': determinarEstadoSemaforo(porcentajeEficiencia),
+              'Turno': determinarTurno(tiempoInicio),
+              'Observaciones': resultados.esMejor ? 'Rendimiento superior al esperado' : 'Revisar causas de demora'
+            }
+          }]
+        })
+      });
+      
+      // 3. Guardar cada pausa individual en Registro_Pausas
+      if (pausas.length > 0) {
+        const registrosPausas = pausas.map(pausa => {
+          const tipoPausa = motivosPausa.find(m => m.id === pausa.motivo)?.tipo || 'operativa';
+          const horaFin = pausa.horaFin || ahora;
+          const duracionMinutos = Math.round((horaFin - pausa.horaInicio) / 60000);
+          
+          return {
+            fields: {
+              'Operario_Nombre': operario,
+              'Orden_ID': ordenSeleccionada.id,
+              'Producto_Nombre': ordenSeleccionada.Producto_Copia || 'Sin producto',
+              'Etapa_Nombre': etapaInfo.nombre,
+              'Tipo_Pausa': tipoPausa === 'operativa' ? TIPOS_PAUSA.OPERATIVA : TIPOS_PAUSA.ADMINISTRATIVA,
+              'Motivo_Pausa': pausa.motivoTexto,
+              'Fecha': pausa.horaInicio.toISOString().split('T')[0],
+              'Hora_Inicio': pausa.horaInicio.toISOString(),
+              'Hora_Fin': horaFin.toISOString(),
+              'Duracion_Minutos': duracionMinutos,
+              'Turno': determinarTurno(pausa.horaInicio)
+            }
+          };
+        });
+        
+        await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroPausas}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ records: registrosPausas })
+        });
+      }
+      
+      console.log('✅ Datos guardados exitosamente en todas las tablas');
     } catch (error) {
       console.error('Error guardando:', error);
       alert('❌ Error al guardar. El registro se mantiene localmente.');
