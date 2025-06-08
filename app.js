@@ -506,7 +506,13 @@ const TiempoProduccionApp = () => {
                 >
                   <option value="">Selecciona una orden</option>
                   {ordenesPendientes.map((orden) => {
-                    const fecha = orden.Fecha_Programada || orden.Fecha_Orden || 'Sin fecha';
+                    // Formatear fecha
+                    let fecha = orden.Fecha_Programada || orden.Fecha_Orden || 'Sin fecha';
+                    if (fecha !== 'Sin fecha' && fecha.includes('-')) {
+                      const [año, mes, dia] = fecha.split('-');
+                      fecha = `${dia}/${mes}/${año}`;
+                    }
+                    
                     const producto = orden.ProductoNombre || 'Sin producto';
                     
                     return (
