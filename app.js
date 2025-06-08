@@ -330,6 +330,17 @@ const TiempoProduccionApp = () => {
     }
   };
 
+  // NUEVO: Validar y sanitizar el tipo de pausa
+  const obtenerTipoPausa = (tipoPausa) => {
+    if (tipoPausa === 'operativa') {
+      return TIPOS_PAUSA.OPERATIVA;
+    } else if (tipoPausa === 'administrativa') {
+      return TIPOS_PAUSA.ADMINISTRATIVA;
+    } else {
+      return TIPOS_PAUSA.OPERATIVA; // Por defecto
+    }
+  };
+
   // Formatear fecha para mostrar
   const formatearFecha = (fecha) => {
     if (!fecha || fecha === 'Sin fecha') return 'Sin fecha';
@@ -488,47 +499,9 @@ const TiempoProduccionApp = () => {
       return reg;
     }));
     
-    // Guardar en las tres tablas de Airtable
+    // Guardar en las nuevas tablas de Airtable
     try {
-      // 1. Guardar en tabla original de ejecución (mantener compatibilidad)
-      const responseEjecucion = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.ejecucion}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          records: [{
-            fields: {
-              'Orden_Produccion': [ordenSeleccionada.id],
-              'Etapa': etapa,
-              'Operario': operario,
-              'Hora_Inicio_Real': tiempoInicio.toISOString(),
-              'Hora_Fin_Real': ahora.toISOString(),
-              'Duracion_Real': Math.round(duracionMinutos),
-              'Estado_Etapa': 'Completada',
-              'Cantidad_Producida': ordenSeleccionada.Cantidad,
-              'Tiempo_Estimado': tiempoEstimadoTotal,
-              'Porcentaje_Eficiencia': porcentajeEficiencia,
-              'Numero_Pausas': pausas.length,
-              'Tiempo_Total_Pausas': tiempoPausasTotal,
-              'Detalle_Pausas': JSON.stringify(pausas.map(p => ({
-                motivo: p.motivoTexto,
-                duracion: p.horaFin ? Math.round((p.horaFin - p.horaInicio) / 60000) : 0
-              })))
-            }
-          }]
-        })
-      });
-      
-      if (!responseEjecucion.ok) {
-        const errorData = await responseEjecucion.json();
-        console.error('❌ Error en tabla Ejecución:', errorData);
-      } else {
-        console.log('✅ Guardado en tabla Ejecución');
-      }
-      
-      // 2. Guardar en nueva tabla Registro_Etapas_Ejecutadas
+      // 1. Guardar en nueva tabla Registro_Etapas_Ejecutadas
       const datosEtapa = {
         'Fecha': tiempoInicio.toISOString().split('T')[0],
         'Operario_Nombre': operario,
@@ -554,6 +527,10 @@ const TiempoProduccionApp = () => {
       };
       
       console.log('📋 Datos a enviar a Registro_Etapas:', datosEtapa);
+      console.log('🔍 Verificando valores críticos:');
+      console.log('   - Turno:', datosEtapa.Turno, '(debe ser Mañana, Tarde o Noche)');
+      console.log('   - Estado_Semaforo:', datosEtapa.Estado_Semaforo, '(debe ser Verde, Amarillo o Rojo)');
+      console.log('   - Etapa_Tipo:', datosEtapa.Etapa_Tipo, '(debe ser Estándar o Variable)');
       
       const responseEtapas = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroEtapas}`, {
         method: 'POST',
@@ -572,16 +549,78 @@ const TiempoProduccionApp = () => {
         const errorData = await responseEtapas.json();
         console.error('❌ Error en tabla Registro_Etapas_Ejecutadas:', errorData);
         console.error('Detalles del error:', JSON.stringify(errorData.error, null, 2));
+        
+        // Mensaje de ayuda específico basado en el error
+        if (errorData.error && errorData.error.type === 'INVALID_MULTIPLE_CHOICE_OPTIONS') {
+          console.error('💡 SOLUCIÓN: Verifica en Airtable que los campos de selección única tengan las opciones correctas:');
+          console.error('   - Turno: debe tener las opciones "Mañana", "Tarde", "Noche"');
+          console.error('   - Estado_Semaforo: debe tener las opciones "Verde", "Amarillo", "Rojo"');
+          console.error('   - Etapa_Tipo: debe tener las opciones "Estándar", "Variable"');
+        }
       } else {
         console.log('✅ Guardado en tabla Registro_Etapas_Ejecutadas');
       }
       
-      // 3. Guardar cada pausa individual en Registro_Pausas
+      // 2. Guardar cada pausa individual en Registro_Pausas
       if (pausas.length > 0) {
         const registrosPausas = pausas.map(pausa => {
           const tipoPausa = motivosPausa.find(m => m.id === pausa.motivo)?.tipo || 'operativa';
           const horaFin = pausa.horaFin || ahora;
           const duracionMinutos = Math.round((horaFin - pausa.horaInicio) / 60000);
+          
+          const datosPausa = {
+            'Operario_Nombre': operario,
+            'Orden_ID': ordenSeleccionada.id,
+            'Producto_Nombre': ordenSeleccionada.Producto_Copia || 'Sin producto',
+            'Etapa_Nombre': etapaInfo.nombre,
+            'Tipo_Pausa': obtenerTipoPausa(tipoPausa),
+            'Motivo_Pausa': pausa.motivoTexto,
+            'Fecha': pausa.horaInicio.toISOString().split('T')[0],
+            'Hora_Inicio': pausa.horaInicio.toISOString(),
+            'Hora_Fin': horaFin.toISOString(),
+            'Duracion_Minutos': duracionMinutos,
+            'Turno': determinarTurno(pausa.horaInicio)
+          };
+          
+          console.log('🔍 Verificando pausa:');
+          console.log('   - Tipo_Pausa:', datosPausa.Tipo_Pausa, '(debe ser Operativa o Administrativa)');
+          console.log('   - Turno:', datosPausa.Turno, '(debe ser Mañana, Tarde o Noche)');
+          
+          return { fields: datosPausa };
+        });
+        
+        console.log('📋 Datos a enviar a Registro_Pausas:', registrosPausas);
+        
+        const responsePausas = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroPausas}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ records: registrosPausas })
+        });
+        
+        if (!responsePausas.ok) {
+          const errorData = await responsePausas.json();
+          console.error('❌ Error en tabla Registro_Pausas:', errorData);
+          console.error('Detalles del error:', JSON.stringify(errorData.error, null, 2));
+          
+          // Mensaje de ayuda específico
+          if (errorData.error && errorData.error.type === 'INVALID_MULTIPLE_CHOICE_OPTIONS') {
+            console.error('💡 SOLUCIÓN: Verifica en Airtable que los campos de selección única tengan las opciones correctas:');
+            console.error('   - Turno: debe tener las opciones "Mañana", "Tarde", "Noche"');
+            console.error('   - Tipo_Pausa: debe tener las opciones "Operativa", "Administrativa"');
+          }
+        } else {
+          console.log('✅ Guardado en tabla Registro_Pausas');
+        }
+      }
+      
+      console.log('✅ Proceso de guardado completado exitosamente');
+    } catch (error) {
+      console.error('❌ Error general al guardar:', error);
+      alert('❌ Error al guardar. El registro se mantiene localmente. Revisa la consola para más detalles.');
+    } Math.round((horaFin - pausa.horaInicio) / 60000);
           
           const datosPausa = {
             'Operario_Nombre': operario,
