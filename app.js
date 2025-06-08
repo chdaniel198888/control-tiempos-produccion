@@ -620,6 +620,12 @@ const TiempoProduccionApp = () => {
     } catch (error) {
       console.error('❌ Error general al guardar:', error);
       alert('❌ Error al guardar. El registro se mantiene localmente. Revisa la consola para más detalles.');
+    }
+      
+      console.log('✅ Proceso de guardado completado exitosamente');
+    } catch (error) {
+      console.error('❌ Error general al guardar:', error);
+      alert('❌ Error al guardar. El registro se mantiene localmente. Revisa la consola para más detalles.');
     } Math.round((horaFin - pausa.horaInicio) / 60000);
           
           const datosPausa = {
