@@ -170,12 +170,10 @@ const TiempoProduccionApp = () => {
   // Cargar etapas cuando se selecciona una orden
   useEffect(() => {
     if (ordenSeleccionada) {
-      // Manejar producto como array o string
-      const productoNombre = Array.isArray(ordenSeleccionada.Producto) 
-        ? ordenSeleccionada.Producto[0] 
-        : ordenSeleccionada.Producto;
+      // Usar el nombre del producto que ya procesamos
+      const productoNombre = ordenSeleccionada.ProductoNombre;
         
-      if (productoNombre) {
+      if (productoNombre && productoNombre !== 'Sin producto') {
         cargarEtapas(productoNombre);
       }
     } else {
@@ -263,9 +261,7 @@ const TiempoProduccionApp = () => {
       id: Date.now(),
       fecha: ahora.toLocaleDateString('es-ES'),
       operario,
-      producto: Array.isArray(ordenSeleccionada.Producto) 
-        ? ordenSeleccionada.Producto[0] 
-        : ordenSeleccionada.Producto,
+      producto: ordenSeleccionada.ProductoNombre || 'Sin producto',
       etapa: etapaInfo.nombre,
       etapaId: etapa,
       horaInicio: ahora.toLocaleTimeString('es-ES'),
@@ -510,16 +506,12 @@ const TiempoProduccionApp = () => {
                 >
                   <option value="">Selecciona una orden</option>
                   {ordenesPendientes.map((orden) => {
-                    // Manejar el producto que puede venir como array o string
-                    const productoNombre = Array.isArray(orden.Producto) 
-                      ? orden.Producto[0] 
-                      : orden.Producto || 'Sin producto';
-                    
-                    const fecha = orden.Fecha_Programada || orden.Fecha_Orden || orden.Fecha_Produccion || 'Sin fecha';
+                    const fecha = orden.Fecha_Programada || orden.Fecha_Orden || 'Sin fecha';
+                    const producto = orden.ProductoNombre || 'Sin producto';
                     
                     return (
                       <option key={orden.id} value={orden.id}>
-                        {fecha} - {productoNombre} - {orden.Cantidad} {orden.Unidad}
+                        {fecha} - {producto} - {orden.Cantidad} {orden.Unidad}
                       </option>
                     );
                   })}
@@ -592,9 +584,7 @@ const TiempoProduccionApp = () => {
                   <div className="bg-white p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Produciendo:</p>
                     <p className="font-semibold">
-                      {Array.isArray(ordenSeleccionada.Producto) 
-                        ? ordenSeleccionada.Producto[0] 
-                        : ordenSeleccionada.Producto}
+                      {ordenSeleccionada.ProductoNombre || 'Sin producto'}
                     </p>
                     <p className="text-sm">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</p>
                     <p className="text-sm text-gray-600 mt-2">Etapa: {etapaInfo.nombre}</p>
