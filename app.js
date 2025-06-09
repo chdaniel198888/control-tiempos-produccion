@@ -18,6 +18,7 @@ const TiempoProduccionApp = () => {
   const [mostrarModalPausa, setMostrarModalPausa] = useState(false);
   const [mostrarResultados, setMostrarResultados] = useState(false);
   const [resultadosFinales, setResultadosFinales] = useState(null);
+  const [odpId, setOdpId] = useState('');
   
   // Estados de datos
   const [operarios, setOperarios] = useState([]);
@@ -364,6 +365,7 @@ const TiempoProduccionApp = () => {
       horaFin: null,
       duracion: 0,
       ordenId: ordenSeleccionada.id,
+      odpId: ordenSeleccionada['ODP ID'] || 'Sin ODP',
       cantidad: ordenSeleccionada.Cantidad,
       unidad: ordenSeleccionada.Unidad
     };
@@ -646,9 +648,10 @@ const TiempoProduccionApp = () => {
 
   // Exportar CSV
   const exportarCSV = () => {
-    const headers = ['Fecha', 'Operario', 'Producto', 'Etapa', 'Cantidad', 'Inicio', 'Fin', 'Duración (min)', 'Tiempo Estimado', '% Eficiencia', 'Pausas'];
+    const headers = ['Fecha', 'ODP ID', 'Operario', 'Producto', 'Etapa', 'Cantidad', 'Inicio', 'Fin', 'Duración (min)', 'Tiempo Estimado', '% Eficiencia', 'Pausas'];
     const rows = registros.map(r => [
       r.fecha, 
+      r.odpId || 'Sin ODP',
       r.operario, 
       r.producto, 
       r.etapa,
@@ -752,6 +755,11 @@ const TiempoProduccionApp = () => {
                     );
                   })}
                 </select>
+                {ordenSeleccionada && ordenSeleccionada['ODP ID'] && (
+                  <p className="text-sm text-blue-600 mt-2 font-semibold">
+                    📋 ODP ID: {ordenSeleccionada['ODP ID']}
+                  </p>
+                )}
                 {ordenesPendientes.length > 0 && (
                   <p className="text-sm text-green-600 mt-1">
                     ✅ {ordenesPendientes.length} órdenes pendientes cargadas
@@ -1109,6 +1117,7 @@ const TiempoProduccionApp = () => {
               <thead>
                 <tr className="bg-gray-100">
                   <th className="border p-2 text-left">Fecha</th>
+                  <th className="border p-2 text-left">ODP ID</th>
                   <th className="border p-2 text-left">Operario</th>
                   <th className="border p-2 text-left">Producto</th>
                   <th className="border p-2 text-left">Etapa</th>
@@ -1122,7 +1131,7 @@ const TiempoProduccionApp = () => {
               <tbody>
                 {registros.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="border p-4 text-center text-gray-500">
+                    <td colSpan="10" className="border p-4 text-center text-gray-500">
                       No hay registros aún. ¡Comienza a registrar tiempos!
                     </td>
                   </tr>
@@ -1130,6 +1139,7 @@ const TiempoProduccionApp = () => {
                   registros.map((registro) => (
                     <tr key={registro.id} className="hover:bg-gray-50">
                       <td className="border p-2">{registro.fecha}</td>
+                      <td className="border p-2 font-semibold text-blue-600">{registro.odpId || 'Sin ODP'}</td>
                       <td className="border p-2">{registro.operario}</td>
                       <td className="border p-2">{registro.producto}</td>
                       <td className="border p-2">{registro.etapa}</td>
