@@ -35,7 +35,6 @@ const TiempoProduccionApp = () => {
     tables: {
       operarios: 'tbl1cnciEfyKNDmhE',
       ordenes: 'tblgL5ujfWZnG0Jtj',
-      ejecucion: 'tblAmR2wbcZ56o60F',
       etapas: 'tblcg4CfbN36krPdC',
       registroPausas: 'tblKA6mBaR3EBF2y8',
       registroEtapas: 'tblWptrJ5xbWiqSfI'
@@ -58,7 +57,7 @@ const TiempoProduccionApp = () => {
     { id: 'cambio_produccion', label: '🔄 Cambio de producción', tipo: 'administrativa' }
   ];
 
-  // NUEVO: Constantes para valores consistentes
+  // Constantes para valores consistentes
   const TIPOS_PAUSA = {
     OPERATIVA: 'Operativa',
     ADMINISTRATIVA: 'Administrativa'
@@ -284,7 +283,7 @@ const TiempoProduccionApp = () => {
     return `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
   };
 
-  // NUEVO: Formatear tiempo en minutos a formato legible
+  // Formatear tiempo en minutos a formato legible
   const formatearMinutos = (minutos) => {
     if (minutos < 60) {
       return `${minutos.toFixed(1)} min`;
@@ -298,7 +297,7 @@ const TiempoProduccionApp = () => {
     }
   };
 
-  // NUEVO: Calcular tiempo total según tipo de etapa
+  // Calcular tiempo total según tipo de etapa
   const calcularTiempoTotal = (tiempoPorUnidad, cantidad, tipoEtapa) => {
     if (tipoEtapa === 'Estándar') {
       return tiempoPorUnidad;
@@ -307,7 +306,7 @@ const TiempoProduccionApp = () => {
     }
   };
 
-  // NUEVO: Determinar turno según la hora
+  // Determinar turno según la hora
   const determinarTurno = (fecha) => {
     const hora = fecha.getHours();
     if (hora >= 6 && hora < 14) {
@@ -319,7 +318,7 @@ const TiempoProduccionApp = () => {
     }
   };
 
-  // NUEVO: Determinar estado del semáforo según eficiencia
+  // Determinar estado del semáforo según eficiencia
   const determinarEstadoSemaforo = (porcentajeEficiencia) => {
     if (porcentajeEficiencia >= 90) {
       return ESTADOS_SEMAFORO.VERDE;
@@ -412,7 +411,7 @@ const TiempoProduccionApp = () => {
     setTiempoPausaActual(null);
   };
 
-  // Finalizar cronómetro - CORREGIDO
+  // Finalizar cronómetro
   const finalizarTiempo = async () => {
     if (!enProceso) return;
     
@@ -485,50 +484,11 @@ const TiempoProduccionApp = () => {
       return reg;
     }));
     
-    // Guardar en las tres tablas de Airtable
+    // Guardar en las tablas de Airtable
     try {
       console.log('🚀 Iniciando guardado en Airtable...');
       
-      // 1. Guardar en tabla original de ejecución
-      const responseEjecucion = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.ejecucion}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          records: [{
-            fields: {
-              'Orden_Produccion': [ordenSeleccionada.id],
-              'Etapa': etapa,
-              'Operario': operario,
-              'Hora_Inicio_Real': tiempoInicio.toISOString(),
-              'Hora_Fin_Real': ahora.toISOString(),
-              'Duracion_Real': Math.round(duracionMinutos),
-              'Estado_Etapa': 'Completada',
-              'Cantidad_Producida': ordenSeleccionada.Cantidad,
-              'Tiempo_Estimado': tiempoEstimadoTotal,
-              'Porcentaje_Eficiencia': porcentajeEficiencia,
-              'Numero_Pausas': pausas.length,
-              'Tiempo_Total_Pausas': tiempoPausasTotal,
-              'Detalle_Pausas': JSON.stringify(pausas.map(p => ({
-                motivo: p.motivoTexto,
-                duracion: p.horaFin ? Math.round((p.horaFin - p.horaInicio) / 60000) : 0
-              })))
-            }
-          }]
-        })
-      });
-      
-      if (!responseEjecucion.ok) {
-        const errorData = await responseEjecucion.json();
-        console.error('❌ Error en tabla Ejecución:', errorData);
-      } else {
-        console.log('✅ Guardado en tabla Ejecución');
-      }
-      */
-      
-      // 2. Guardar en nueva tabla Registro_Etapas_Ejecutadas
+      // 1. Guardar en tabla Registro_Etapas_Ejecutadas
       const datosEtapa = {
         'Fecha': tiempoInicio.toISOString().split('T')[0],
         'Operario_Nombre': operario,
@@ -575,7 +535,7 @@ const TiempoProduccionApp = () => {
         console.log('✅ Guardado en tabla Registro_Etapas_Ejecutadas');
       }
       
-      // 2. CORRECCIÓN: Guardar pausas solo si existen
+      // 2. Guardar pausas solo si existen
       if (pausas.length > 0) {
         console.log(`📊 Procesando ${pausas.length} pausas para guardar...`);
         
@@ -594,7 +554,7 @@ const TiempoProduccionApp = () => {
             'Producto_Nombre': ordenSeleccionada.Producto_Copia || 'Sin producto',
             'Etapa_Nombre': etapaInfo.nombre,
             'Tipo_Pausa': tipoPausa === 'operativa' ? TIPOS_PAUSA.OPERATIVA : TIPOS_PAUSA.ADMINISTRATIVA,
-            'Motivo_Pausa': motivoLimpio, // Usar motivo limpio
+            'Motivo_Pausa': motivoLimpio,
             'Fecha': pausa.horaInicio.toISOString().split('T')[0],
             'Hora_Inicio': pausa.horaInicio.toISOString(),
             'Hora_Fin': horaFin.toISOString(),
