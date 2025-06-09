@@ -1679,13 +1679,22 @@ const TiempoProduccionComponent = ({ usuario, onLogout }) => {
 // Componente principal de la aplicación
 const App = () => {
   const [usuario, setUsuario] = useState(null);
+  const [vistaActual, setVistaActual] = useState('');
 
   const handleLogin = (datosUsuario) => {
     setUsuario(datosUsuario);
+    
+    // Determinar vista inicial según cargo
+    if (datosUsuario.cargo === 'Operario de producción') {
+      setVistaActual('tiempos');
+    } else if (['Pasante', 'Jefe de planta', 'Jefe de Planta', 'Practicante'].includes(datosUsuario.cargo)) {
+      setVistaActual('dashboard'); // Vista por defecto para roles con acceso completo
+    }
   };
 
   const handleLogout = () => {
     setUsuario(null);
+    setVistaActual('');
   };
 
   // Si no hay usuario logueado, mostrar login
@@ -1693,13 +1702,81 @@ const App = () => {
     return <LoginComponent onLogin={handleLogin} />;
   }
 
-  // Si es jefe de planta, mostrar dashboard
-  if (usuario.cargo === 'Jefe de Planta' || usuario.cargo === 'Jefe de planta') {
-    return <DashboardComponent usuario={usuario} onLogout={handleLogout} />;
+  // Para usuarios con acceso completo, mostrar selector de vista
+  if (['Pasante', 'Jefe de planta', 'Jefe de Planta', 'Practicante'].includes(usuario.cargo)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        {/* Barra de navegación */}
+        <div className="bg-white shadow-lg p-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <h1 className="text-xl font-bold text-gray-800">
+                Sistema de Producción - {usuario.nombre}
+              </h1>
+              <span className="text-sm text-gray-600">({usuario.cargo})</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setVistaActual('dashboard')}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  vistaActual === 'dashboard' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                📊 Dashboard
+              </button>
+              <button
+                onClick={() => setVistaActual('tiempos')}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  vistaActual === 'tiempos' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                🕐 Control de Tiempos
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Cerrar Sesión
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Contenido según vista seleccionada */}
+        <div className="mt-0">
+          {vistaActual === 'dashboard' && <DashboardComponent usuario={usuario} onLogout={handleLogout} />}
+          {vistaActual === 'tiempos' && <TiempoProduccionComponent usuario={usuario} onLogout={handleLogout} />}
+        </div>
+      </div>
+    );
   }
 
-  // Si es operario, mostrar control de tiempos
-  return <TiempoProduccionComponent usuario={usuario} onLogout={handleLogout} />;
+  // Para operarios, mostrar solo control de tiempos
+  if (usuario.cargo === 'Operario de producción') {
+    return <TiempoProduccionComponent usuario={usuario} onLogout={handleLogout} />;
+  }
+
+  // Si el cargo no está definido, mostrar error
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md">
+        <h2 className="text-xl font-bold text-red-600 mb-4">Error de Acceso</h2>
+        <p className="text-gray-700 mb-4">
+          Tu cargo "{usuario.cargo}" no tiene permisos definidos en el sistema.
+        </p>
+        <button
+          onClick={handleLogout}
+          className="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
+        >
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  );
 };
 
 ReactDOM.render(<App />, document.getElementById('root'));
