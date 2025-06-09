@@ -129,8 +129,13 @@ const TiempoProduccionApp = () => {
             ...record.fields
           };
           
+          // Extraer el texto del producto correctamente
+          if (Array.isArray(orden.Producto_Copia)) {
+            orden.Producto_Copia = orden.Producto_Copia[0] || 'Sin producto';
+          }
+          
           console.log('Orden procesada:', {
-            producto: orden.Producto,
+            producto: orden.Producto_Copia,
             fecha: orden.Fecha_Programada,
             cantidad: orden.Cantidad
           });
@@ -521,6 +526,7 @@ const TiempoProduccionApp = () => {
       } else {
         console.log('✅ Guardado en tabla Ejecución');
       }
+      */
       
       // 2. Guardar en nueva tabla Registro_Etapas_Ejecutadas
       const datosEtapa = {
@@ -775,7 +781,7 @@ const TiempoProduccionApp = () => {
                   {ordenesPendientes.map((orden) => {
                     const fecha = formatearFecha(orden.Fecha_Programada || orden.Fecha_Orden);
                     const dia = orden.Día || orden.Dia || '';
-                    const producto = orden.Producto_Copia || 'Sin producto';
+                    const producto = Array.isArray(orden.Producto_Copia) ? orden.Producto_Copia[0] : (orden.Producto_Copia || 'Sin producto');
                     const cantidad = orden.Cantidad || 0;
                     const unidad = orden.Unidad || '';
                     
