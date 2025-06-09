@@ -521,7 +521,6 @@ const TiempoProduccionApp = () => {
       } else {
         console.log('✅ Guardado en tabla Ejecución');
       }
-      */
       
       // 2. Guardar en nueva tabla Registro_Etapas_Ejecutadas
       const datosEtapa = {
