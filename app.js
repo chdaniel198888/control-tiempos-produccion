@@ -1,8 +1,526 @@
 const { useState, useEffect, useRef } = React;
 
-const TiempoProduccionApp = () => {
+// Componente de Login
+const LoginComponent = ({ onLogin }) => {
+  const [nombre, setNombre] = useState('');
+  const [pin, setPin] = useState('');
+  const [usuarios, setUsuarios] = useState([]);
+  const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(true);
+
+  const config = {
+    baseId: 'appxLN1eWmQtHtScK',
+    token: 'patwsDQO9ESnSjoPm.f25ac0959b111660f0fe4bbe1a8f6475d5444999c0641e283cd050c84281b4e0',
+    tables: {
+      operarios: 'tbl1cnciEfyKNDmhE'
+    }
+  };
+
+  useEffect(() => {
+    cargarUsuarios();
+  }, []);
+
+  const cargarUsuarios = async () => {
+    try {
+      const url = `https://api.airtable.com/v0/${config.baseId}/${config.tables.operarios}`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${config.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const usuariosList = data.records.map(record => ({
+          id: record.id,
+          nombre: record.fields.Nombre || 'Sin nombre',
+          cargo: record.fields.Cargo || '',
+          claveAcceso: record.fields['Clave Acceso'] || ''
+        }));
+        setUsuarios(usuariosList);
+      }
+    } catch (error) {
+      console.error('Error cargando usuarios:', error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setError('');
+
+    const usuario = usuarios.find(u => u.nombre === nombre);
+    if (!usuario) {
+      setError('Usuario no encontrado');
+      return;
+    }
+
+    if (usuario.claveAcceso !== pin) {
+      setError('PIN incorrecto');
+      return;
+    }
+
+    onLogin({
+      nombre: usuario.nombre,
+      cargo: usuario.cargo,
+      id: usuario.id
+    });
+  };
+
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-2xl">⏳ Cargando...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
+        <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
+          🏭 Control de Producción
+        </h1>
+        
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Usuario
+            </label>
+            <select
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Selecciona tu nombre</option>
+              {usuarios.map((usuario) => (
+                <option key={usuario.id} value={usuario.nombre}>
+                  {usuario.nombre} ({usuario.cargo})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              PIN (4 dígitos)
+            </label>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              maxLength="4"
+              pattern="\d{4}"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-center text-2xl font-mono"
+              placeholder="••••"
+              required
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-100 text-red-700 p-3 rounded-lg text-center">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 font-semibold text-lg"
+          >
+            Ingresar
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Componente Dashboard para Jefe de Planta
+const DashboardComponent = ({ usuario, onLogout }) => {
+  const [metricas, setMetricas] = useState({
+    produccionHoy: 0,
+    eficienciaPromedio: 0,
+    tiempoTotalPausas: 0,
+    operariosActivos: 0
+  });
+  const [registros, setRegistros] = useState([]);
+  const [pausas, setPausas] = useState([]);
+  const [filtroFecha, setFiltroFecha] = useState('hoy');
+  const [filtroProducto, setFiltroProducto] = useState('todos');
+  const [productos, setProductos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+
+  const config = {
+    baseId: 'appxLN1eWmQtHtScK',
+    token: 'patwsDQO9ESnSjoPm.f25ac0959b111660f0fe4bbe1a8f6475d5444999c0641e283cd050c84281b4e0',
+    tables: {
+      registroEtapas: 'tblWptrJ5xbWiqSfI',
+      registroPausas: 'tblKA6mBaR3EBF2y8'
+    }
+  };
+
+  useEffect(() => {
+    cargarDatos();
+    const interval = setInterval(cargarDatos, 30000); // Actualizar cada 30 segundos
+    return () => clearInterval(interval);
+  }, [filtroFecha, filtroProducto]);
+
+  const cargarDatos = async () => {
+    setCargando(true);
+    try {
+      // Cargar registros de etapas
+      const responseEtapas = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroEtapas}`, {
+        headers: {
+          'Authorization': `Bearer ${config.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Cargar registros de pausas
+      const responsePausas = await fetch(`https://api.airtable.com/v0/${config.baseId}/${config.tables.registroPausas}`, {
+        headers: {
+          'Authorization': `Bearer ${config.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (responseEtapas.ok && responsePausas.ok) {
+        const dataEtapas = await responseEtapas.json();
+        const dataPausas = await responsePausas.json();
+
+        // Procesar registros según filtros
+        const registrosProcesados = procesarRegistros(dataEtapas.records);
+        const pausasProcesadas = procesarPausas(dataPausas.records);
+
+        setRegistros(registrosProcesados);
+        setPausas(pausasProcesadas);
+        calcularMetricas(registrosProcesados, pausasProcesadas);
+        
+        // Extraer productos únicos
+        const productosUnicos = [...new Set(registrosProcesados.map(r => r.producto))];
+        setProductos(productosUnicos);
+      }
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const procesarRegistros = (records) => {
+    return records.map(record => ({
+      fecha: record.fields.Fecha,
+      operario: record.fields.Operario_Nombre,
+      producto: record.fields.Producto_Nombre,
+      etapa: record.fields.Etapa_Nombre,
+      duracionTotal: record.fields.Duracion_Total_Min || 0,
+      duracionProductiva: record.fields.Duracion_Productiva_Min || 0,
+      eficiencia: record.fields.Porcentaje_Eficiencia || 0,
+      estadoSemaforo: record.fields.Estado_Semaforo,
+      turno: record.fields.Turno
+    })).filter(r => aplicarFiltros(r));
+  };
+
+  const procesarPausas = (records) => {
+    return records.map(record => ({
+      fecha: record.fields.Fecha,
+      operario: record.fields.Operario_Nombre,
+      producto: record.fields.Producto_Nombre,
+      tipo: record.fields.Tipo_Pausa,
+      motivo: record.fields.Motivo_Pausa,
+      duracion: record.fields.Duracion_Minutos || 0,
+      turno: record.fields.Turno
+    })).filter(p => aplicarFiltros(p));
+  };
+
+  const aplicarFiltros = (registro) => {
+    // Filtro de fecha
+    const hoy = new Date();
+    const fechaRegistro = new Date(registro.fecha);
+    
+    switch (filtroFecha) {
+      case 'hoy':
+        if (fechaRegistro.toDateString() !== hoy.toDateString()) return false;
+        break;
+      case 'semana':
+        const inicioSemana = new Date(hoy);
+        inicioSemana.setDate(hoy.getDate() - 7);
+        if (fechaRegistro < inicioSemana) return false;
+        break;
+      case 'mes':
+        const inicioMes = new Date(hoy);
+        inicioMes.setDate(hoy.getDate() - 30);
+        if (fechaRegistro < inicioMes) return false;
+        break;
+    }
+
+    // Filtro de producto
+    if (filtroProducto !== 'todos' && registro.producto !== filtroProducto) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const calcularMetricas = (registros, pausas) => {
+    const operariosUnicos = new Set(registros.filter(r => {
+      const hoy = new Date();
+      return new Date(r.fecha).toDateString() === hoy.toDateString();
+    }).map(r => r.operario));
+
+    const eficiencias = registros.map(r => r.eficiencia);
+    const eficienciaPromedio = eficiencias.length > 0 
+      ? Math.round(eficiencias.reduce((a, b) => a + b, 0) / eficiencias.length)
+      : 0;
+
+    const tiempoTotalPausas = pausas.reduce((acc, p) => acc + p.duracion, 0);
+
+    setMetricas({
+      produccionHoy: registros.filter(r => {
+        const hoy = new Date();
+        return new Date(r.fecha).toDateString() === hoy.toDateString();
+      }).length,
+      eficienciaPromedio,
+      tiempoTotalPausas,
+      operariosActivos: operariosUnicos.size
+    });
+  };
+
+  // Datos para gráficos
+  const datosEficienciaPorOperario = () => {
+    const porOperario = {};
+    registros.forEach(r => {
+      if (!porOperario[r.operario]) {
+        porOperario[r.operario] = [];
+      }
+      porOperario[r.operario].push(r.eficiencia);
+    });
+
+    return Object.entries(porOperario).map(([operario, eficiencias]) => ({
+      name: operario.split(' ')[0], // Solo primer nombre
+      value: Math.round(eficiencias.reduce((a, b) => a + b, 0) / eficiencias.length)
+    }));
+  };
+
+  const datosPausasPorTipo = () => {
+    const porTipo = {};
+    pausas.forEach(p => {
+      if (!porTipo[p.tipo]) {
+        porTipo[p.tipo] = 0;
+      }
+      porTipo[p.tipo] += p.duracion;
+    });
+
+    return Object.entries(porTipo).map(([tipo, duracion]) => ({
+      name: tipo,
+      value: duracion
+    }));
+  };
+
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-2xl">⏳ Cargando dashboard...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">
+                📊 Dashboard de Producción
+              </h1>
+              <p className="text-gray-600 mt-1">Bienvenido, {usuario.nombre}</p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
+        </div>
+
+        {/* Filtros */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Período
+              </label>
+              <select
+                value={filtroFecha}
+                onChange={(e) => setFiltroFecha(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg"
+              >
+                <option value="hoy">Hoy</option>
+                <option value="semana">Última Semana</option>
+                <option value="mes">Último Mes</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Producto
+              </label>
+              <select
+                value={filtroProducto}
+                onChange={(e) => setFiltroProducto(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg"
+              >
+                <option value="todos">Todos los productos</option>
+                {productos.map(producto => (
+                  <option key={producto} value={producto}>{producto}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Métricas principales */}
+        <div className="grid md:grid-cols-4 gap-6 mb-6">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Producción Hoy</p>
+                <p className="text-3xl font-bold text-blue-600">{metricas.produccionHoy}</p>
+              </div>
+              <div className="text-4xl">📦</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Eficiencia Promedio</p>
+                <p className="text-3xl font-bold text-green-600">{metricas.eficienciaPromedio}%</p>
+              </div>
+              <div className="text-4xl">📈</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Tiempo en Pausas</p>
+                <p className="text-3xl font-bold text-orange-600">{metricas.tiempoTotalPausas} min</p>
+              </div>
+              <div className="text-4xl">⏸️</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Operarios Activos</p>
+                <p className="text-3xl font-bold text-purple-600">{metricas.operariosActivos}</p>
+              </div>
+              <div className="text-4xl">👥</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Gráficos */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          {/* Eficiencia por Operario */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Eficiencia por Operario</h3>
+            <div className="space-y-3">
+              {datosEficienciaPorOperario().map((operario) => (
+                <div key={operario.name}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>{operario.name}</span>
+                    <span className="font-semibold">{operario.value}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-6">
+                    <div 
+                      className={`h-6 rounded-full ${
+                        operario.value >= 90 ? 'bg-green-500' :
+                        operario.value >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${operario.value}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Distribution de Pausas */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Distribución de Pausas</h3>
+            <div className="space-y-3">
+              {datosPausasPorTipo().map((tipo) => (
+                <div key={tipo.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="font-medium">{tipo.name}</span>
+                  <span className="text-lg font-bold text-orange-600">{tipo.value} min</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tabla de registros recientes */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Registros Recientes</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2 text-left">Fecha</th>
+                  <th className="p-2 text-left">Operario</th>
+                  <th className="p-2 text-left">Producto</th>
+                  <th className="p-2 text-left">Etapa</th>
+                  <th className="p-2 text-left">Eficiencia</th>
+                  <th className="p-2 text-left">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registros.slice(0, 10).map((registro, index) => (
+                  <tr key={index} className="border-b hover:bg-gray-50">
+                    <td className="p-2">{registro.fecha}</td>
+                    <td className="p-2">{registro.operario}</td>
+                    <td className="p-2">{registro.producto}</td>
+                    <td className="p-2">{registro.etapa}</td>
+                    <td className="p-2">
+                      <span className={`font-semibold ${
+                        registro.eficiencia >= 90 ? 'text-green-600' :
+                        registro.eficiencia >= 75 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {registro.eficiencia}%
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        registro.estadoSemaforo === 'Verde' ? 'bg-green-100 text-green-800' :
+                        registro.estadoSemaforo === 'Amarillo' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {registro.estadoSemaforo}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente de Control de Tiempos (tu código original)
+const TiempoProduccionComponent = ({ usuario, onLogout }) => {
   // Estados principales
-  const [operario, setOperario] = useState('');
+  const [operario, setOperario] = useState(usuario.nombre);
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
   const [etapa, setEtapa] = useState('');
   const [etapaInfo, setEtapaInfo] = useState(null);
@@ -687,11 +1205,22 @@ const TiempoProduccionApp = () => {
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-800">
-              🕐 Control de Tiempos - Producción
-            </h1>
-            <div className="text-lg text-gray-600">
-              {tiempoActual.toLocaleDateString('es-ES')} {tiempoActual.toLocaleTimeString('es-ES')}
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">
+                🕐 Control de Tiempos - Producción
+              </h1>
+              <p className="text-gray-600 mt-1">Operario: {usuario.nombre}</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-lg text-gray-600">
+                {tiempoActual.toLocaleDateString('es-ES')} {tiempoActual.toLocaleTimeString('es-ES')}
+              </div>
+              <button
+                onClick={onLogout}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Cerrar Sesión
+              </button>
             </div>
           </div>
         </div>
@@ -702,29 +1231,6 @@ const TiempoProduccionApp = () => {
           
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              {/* Operario */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Operario de Producción
-                </label>
-                <select
-                  value={operario}
-                  onChange={(e) => setOperario(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  disabled={enProceso}
-                >
-                  <option value="">Selecciona un operario</option>
-                  {operarios.map((op) => (
-                    <option key={op.id} value={op.nombre}>
-                      {op.nombre} {op.codigo ? `(${op.codigo})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-sm text-green-600 mt-1">
-                  ✅ {operarios.length} operarios de producción cargados
-                </p>
-              </div>
-
               {/* Orden de Producción */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -823,351 +1329,3 @@ const TiempoProduccionApp = () => {
                           </div>
                           <div className={`text-4xl ${
                             etapaInfo.tipoEtapa === 'Estándar' ? 'text-yellow-400' : 'text-green-400'
-                          }`}>
-                            ⏱️
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card de Mejor Tiempo */}
-                      <div className={`rounded-lg p-4 shadow-md border-2 ${
-                        etapaInfo.tipoEtapa === 'Estándar'
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-green-50 border-green-200'
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-600 flex items-center gap-1">
-                              <span className="text-lg">🎯</span> Mejor Tiempo
-                            </p>
-                            <p className="text-2xl font-bold text-gray-800 mt-1">
-                              {formatearMinutos(calcularTiempoTotal(
-                                etapaInfo.tiempoMinimo,
-                                ordenSeleccionada.Cantidad,
-                                etapaInfo.tipoEtapa
-                              ))}
-                            </p>
-                          </div>
-                          <div className={`text-4xl ${
-                            etapaInfo.tipoEtapa === 'Estándar' ? 'text-yellow-400' : 'text-green-400'
-                          }`}>
-                            🏆
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card de Detalles */}
-                      <div className="rounded-lg p-3 bg-gray-50 border border-gray-200">
-                        <p className="text-xs font-medium text-gray-600 mb-2">📈 Detalles del Cálculo</p>
-                        <div className="space-y-1 text-xs text-gray-700">
-                          <p>📦 Cantidad: <span className="font-semibold">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</span></p>
-                          {etapaInfo.tipoEtapa === 'Variable' && (
-                            <p>⏱️ Tiempo base: <span className="font-semibold">{etapaInfo.tiempoPromedio} min/{etapaInfo.unidad}</span></p>
-                          )}
-                          {etapaInfo.tipoEtapa === 'Estándar' && (
-                            <p className="text-yellow-700">⚡ Tiempo fijo (no depende de cantidad)</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Panel Estado */}
-            <div className="bg-gray-50 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Estado Actual</h3>
-              
-              <div className="text-center space-y-4">
-                {/* Semáforo */}
-                <div className="flex justify-center mb-4">
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center ${
-                    calcularColorSemaforo() === 'green' ? 'bg-green-500' :
-                    calcularColorSemaforo() === 'yellow' ? 'bg-yellow-500' :
-                    calcularColorSemaforo() === 'red' ? 'bg-red-500' :
-                    'bg-gray-300'
-                  }`}>
-                    <span className="text-white text-2xl font-bold">
-                      {calcularColorSemaforo() === 'green' ? '✓' :
-                       calcularColorSemaforo() === 'yellow' ? '!' :
-                       calcularColorSemaforo() === 'red' ? '✗' : '•'}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="text-5xl font-mono font-bold text-blue-600">
-                  {formatearTiempo(cronometro)}
-                </div>
-                
-                {enPausa && (
-                  <div className="text-orange-500 font-semibold animate-pulse">
-                    ⏸️ EN PAUSA - {motivosPausa.find(m => m.id === pausas[pausas.length - 1]?.motivo)?.label}
-                  </div>
-                )}
-                
-                {ordenSeleccionada && etapaInfo && (
-                  <div className="bg-white p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">Produciendo:</p>
-                    <p className="font-semibold">
-                      {ordenSeleccionada.Producto_Copia || 'Sin producto'}
-                    </p>
-                    <p className="text-sm">{ordenSeleccionada.Cantidad} {ordenSeleccionada.Unidad}</p>
-                    <p className="text-sm text-gray-600 mt-2">Etapa: {etapaInfo.nombre}</p>
-                  </div>
-                )}
-                
-                <div className="flex gap-4 justify-center flex-wrap">
-                  <button
-                    onClick={iniciarTiempo}
-                    disabled={enProceso || !operario || !ordenSeleccionada || !etapa}
-                    className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 ${
-                      enProceso || !operario || !ordenSeleccionada || !etapa
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-green-500 hover:bg-green-600 text-white'
-                    }`}
-                  >
-                    ▶️ Iniciar
-                  </button>
-                  
-                  <button
-                    onClick={enPausa ? reanudar : iniciarPausa}
-                    disabled={!enProceso}
-                    className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 ${
-                      !enProceso
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : enPausa
-                        ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                        : 'bg-orange-500 hover:bg-orange-600 text-white'
-                    }`}
-                  >
-                    {enPausa ? '▶️ Reanudar' : '⏸️ Pausar'}
-                  </button>
-                  
-                  <button
-                    onClick={finalizarTiempo}
-                    disabled={!enProceso}
-                    className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 ${
-                      !enProceso
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-red-500 hover:bg-red-600 text-white'
-                    }`}
-                  >
-                    ⏹️ Finalizar
-                  </button>
-                </div>
-                
-                {pausas.length > 0 && (
-                  <div className="mt-4 text-sm text-gray-600">
-                    Pausas realizadas: {pausas.length}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Modal de Pausa */}
-        {mostrarModalPausa && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-semibold mb-4">Selecciona el motivo de pausa</h3>
-              
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                <div className="font-semibold text-gray-700 mt-2">Pausas Operativas</div>
-                {motivosPausa.filter(m => m.tipo === 'operativa').map(motivo => (
-                  <label key={motivo.id} className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
-                    <input
-                      type="radio"
-                      name="motivoPausa"
-                      value={motivo.id}
-                      checked={motivoPausa === motivo.id}
-                      onChange={(e) => setMotivoPausa(e.target.value)}
-                      className="mr-3"
-                    />
-                    <span>{motivo.label}</span>
-                  </label>
-                ))}
-                
-                <div className="font-semibold text-gray-700 mt-4">Pausas Administrativas</div>
-                {motivosPausa.filter(m => m.tipo === 'administrativa').map(motivo => (
-                  <label key={motivo.id} className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
-                    <input
-                      type="radio"
-                      name="motivoPausa"
-                      value={motivo.id}
-                      checked={motivoPausa === motivo.id}
-                      onChange={(e) => setMotivoPausa(e.target.value)}
-                      className="mr-3"
-                    />
-                    <span>{motivo.label}</span>
-                  </label>
-                ))}
-              </div>
-              
-              <div className="flex gap-4 mt-6">
-                <button
-                  onClick={confirmarPausa}
-                  className="flex-1 bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600"
-                >
-                  Confirmar Pausa
-                </button>
-                <button
-                  onClick={() => {
-                    setMostrarModalPausa(false);
-                    setMotivoPausa('');
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Resultados */}
-        {mostrarResultados && resultadosFinales && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-semibold mb-4">📊 Resultados de la Etapa</h3>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                  <span>Tiempo Real:</span>
-                  <span className="font-bold">{resultadosFinales.duracionMinutos} min</span>
-                </div>
-                
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                  <span>Tiempo Estimado:</span>
-                  <span className="font-bold">{resultadosFinales.tiempoEstimado} min</span>
-                </div>
-                
-                <div className={`flex justify-between items-center p-3 rounded ${
-                  resultadosFinales.esMejor ? 'bg-green-100' : 'bg-red-100'
-                }`}>
-                  <span>Diferencia:</span>
-                  <span className={`font-bold ${
-                    resultadosFinales.esMejor ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {resultadosFinales.esMejor ? '-' : '+'}{Math.abs(resultadosFinales.diferencia)} min
-                  </span>
-                </div>
-                
-                <div className={`flex justify-between items-center p-3 rounded ${
-                  resultadosFinales.esMejor ? 'bg-green-100' : 'bg-red-100'
-                }`}>
-                  <span>Porcentaje:</span>
-                  <span className={`font-bold text-xl ${
-                    resultadosFinales.esMejor ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {resultadosFinales.esMejor ? '-' : '+'}{Math.abs(resultadosFinales.porcentajeDiferencia)}%
-                  </span>
-                </div>
-                
-                {resultadosFinales.pausas > 0 && (
-                  <>
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                      <span>Número de Pausas:</span>
-                      <span className="font-bold">{resultadosFinales.pausas}</span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                      <span>Tiempo Total en Pausas:</span>
-                      <span className="font-bold">{Math.round(resultadosFinales.tiempoPausas / 60)} min</span>
-                    </div>
-                  </>
-                )}
-                
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg text-center">
-                  <p className="text-lg font-semibold">
-                    {resultadosFinales.esMejor ? 
-                      '🎉 ¡Excelente trabajo! Superaste el tiempo estimado' : 
-                      '💪 ¡Sigue mejorando! Puedes hacerlo mejor'}
-                  </p>
-                </div>
-              </div>
-              
-              <button
-                onClick={cerrarResultados}
-                className="w-full mt-6 bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Historial */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-700">
-              Historial de Registros ({registros.length})
-            </h2>
-            <button
-              onClick={exportarCSV}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
-            >
-              📥 Exportar CSV
-            </button>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border p-2 text-left">Fecha</th>
-                  <th className="border p-2 text-left">ODP ID</th>
-                  <th className="border p-2 text-left">Operario</th>
-                  <th className="border p-2 text-left">Producto</th>
-                  <th className="border p-2 text-left">Etapa</th>
-                  <th className="border p-2 text-left">Cantidad</th>
-                  <th className="border p-2 text-left">Inicio</th>
-                  <th className="border p-2 text-left">Fin</th>
-                  <th className="border p-2 text-left">Duración (min)</th>
-                  <th className="border p-2 text-left">Eficiencia</th>
-                </tr>
-              </thead>
-              <tbody>
-                {registros.length === 0 ? (
-                  <tr>
-                    <td colSpan="10" className="border p-4 text-center text-gray-500">
-                      No hay registros aún. ¡Comienza a registrar tiempos!
-                    </td>
-                  </tr>
-                ) : (
-                  registros.map((registro) => (
-                    <tr key={registro.id} className="hover:bg-gray-50">
-                      <td className="border p-2">{registro.fecha}</td>
-                      <td className="border p-2 font-semibold text-blue-600">{registro.odpId || 'Sin ODP'}</td>
-                      <td className="border p-2">{registro.operario}</td>
-                      <td className="border p-2">{registro.producto}</td>
-                      <td className="border p-2">{registro.etapa}</td>
-                      <td className="border p-2">{registro.cantidad} {registro.unidad}</td>
-                      <td className="border p-2">{registro.horaInicio}</td>
-                      <td className="border p-2">
-                        {registro.horaFin || 
-                          <span className="text-orange-500 font-semibold">En proceso...</span>
-                        }
-                      </td>
-                      <td className="border p-2">{registro.duracion ? registro.duracion.toFixed(2) : '-'}</td>
-                      <td className="border p-2">
-                        {registro.resultados ? 
-                          <span className={registro.resultados.esMejor ? 'text-green-600' : 'text-red-600'}>
-                            {100 - Math.abs(parseFloat(registro.resultados.porcentajeDiferencia))}%
-                          </span> : '-'
-                        }
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-ReactDOM.render(<TiempoProduccionApp />, document.getElementById('root'));
