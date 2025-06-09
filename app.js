@@ -520,12 +520,13 @@ const TiempoProduccionApp = () => {
         })
       });
       
-        if (!responseEjecucion.ok) {
-          const errorData = await responseEjecucion.json();
-          console.error('❌ Error en tabla Ejecución:', errorData);
-        } else {
-          console.log('✅ Guardado en tabla Ejecución');
-        }
+      if (!responseEjecucion.ok) {
+        const errorData = await responseEjecucion.json();
+        console.error('❌ Error en tabla Ejecución:', errorData);
+      } else {
+        console.log('✅ Guardado en tabla Ejecución');
+      }
+      */
       
       // 2. Guardar en nueva tabla Registro_Etapas_Ejecutadas
       const datosEtapa = {
@@ -574,7 +575,7 @@ const TiempoProduccionApp = () => {
         console.log('✅ Guardado en tabla Registro_Etapas_Ejecutadas');
       }
       
-      // 3. CORRECCIÓN: Guardar pausas solo si existen
+      // 2. CORRECCIÓN: Guardar pausas solo si existen
       if (pausas.length > 0) {
         console.log(`📊 Procesando ${pausas.length} pausas para guardar...`);
         
